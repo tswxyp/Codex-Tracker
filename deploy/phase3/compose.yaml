@@ -1,0 +1,77 @@
+name: codex-tracker
+x-service: &service
+  build:
+    context: ../..
+    dockerfile: deploy/phase3/Dockerfile
+  image: codex-tracker-server:phase3
+  volumes:
+    - keys:/data/keys
+    - security:/data/security
+    - ./secrets/server.pfx:/certs/server.pfx:ro
+  environment: &env
+    Tracker__Issuer: ${TRACKER_ISSUER:?set HTTPS origin}
+    Tracker__Epoch: ${TRACKER_EPOCH:?set persistent epoch UUID}
+    Tracker__Certificate: /certs/server.pfx
+    Tracker__KeyDirectory: /data/keys
+    Tracker__SecurityDirectory: /data/security
+    Tracker__OpenRegistration: ${TRACKER_REGISTRATION:-false}
+    Pg__Host: db
+    Pg__Database: tracker
+    Pg__User: tracker_api
+    Smtp__Host: ${TRACKER_SMTP_HOST:?set SMTP server}
+    Smtp__Port: ${TRACKER_SMTP_PORT:-587}
+    Smtp__From: ${TRACKER_SMTP_FROM:?set sender}
+    Smtp__User: ${TRACKER_SMTP_USER:-}
+    ASPNETCORE_URLS: https://+:8443
+  secrets: &runtime_secrets
+    - source: pfx_password
+      target: Tracker__CertificatePassword
+    - source: runtime_password
+      target: Pg__Password
+    - source: smtp_password
+      target: Smtp__Password
+services:
+  db:
+    image: postgres:17.12@sha256:0d938e975177bef9f1f61f3f9dbcf2e0aa0a139568f66d3415ed8892eb97f6ac
+    environment:
+      POSTGRES_DB: tracker
+      POSTGRES_USER: tracker_owner
+      POSTGRES_PASSWORD_FILE: /run/secrets/owner_password
+    secrets: [owner_password, runtime_password]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./00-runtime-role.sh:/docker-entrypoint-initdb.d/00-runtime-role.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -h 127.0.0.1 -U tracker_owner -d tracker"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  migrate:
+    <<: *service
+    depends_on:
+      db: {condition: service_healthy}
+    environment:
+      <<: *env
+      Pg__User: tracker_owner
+    secrets:
+      - source: pfx_password
+        target: Tracker__CertificatePassword
+      - source: owner_password
+        target: Pg__Password
+    command: ["--migrate"]
+  api:
+    <<: *service
+    restart: unless-stopped
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    ports:
+      - "${TRACKER_PORT:-8443}:8443"
+volumes:
+  pgdata:
+  keys:
+  security:
+secrets:
+  owner_password: {file: ./secrets/owner_password}
+  runtime_password: {file: ./secrets/runtime_password}
+  smtp_password: {file: ./secrets/smtp_password}
+  pfx_password: {file: ./secrets/pfx_password}

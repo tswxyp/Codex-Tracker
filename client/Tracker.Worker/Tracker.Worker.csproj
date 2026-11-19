@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>CodexTracker</AssemblyName>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite.Core" Version="10.0.9" />
+    <PackageReference Include="SQLitePCLRaw.provider.winsqlite3" Version="2.1.11" />
+    <PackageReference Include="ZstdSharp.Port" Version="0.8.8" />
+    <EmbeddedResource Include="../../database/001-local.sql" LogicalName="001-local.sql" />
+    <EmbeddedResource Include="../../database/002-lineage.sql" LogicalName="002-lineage.sql" />
+  </ItemGroup>
+</Project>

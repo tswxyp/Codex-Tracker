@@ -1,0 +1,9 @@
+@using Microsoft.AspNetCore.Identity
+@inject SignInManager<IdentityUser> SignIn
+@if(SignIn.IsSignedIn(User)) {
+    <a href="/devices">设备</a>
+    <a href="/Identity/Account/Manage">账号</a>
+    <a href="/Identity/Account/Logout">退出</a>
+} else {
+    <a href="/Identity/Account/Login">登录</a>
+}

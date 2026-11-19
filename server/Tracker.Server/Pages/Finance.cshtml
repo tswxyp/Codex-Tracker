@@ -1,0 +1,105 @@
+@page "/finance"
+@model Tracker.Server.FinancePage
+@using Tracker.Server
+@using System.Globalization
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@{
+    var report=Model.Report;
+    var bill=Model.Period?.Id;
+    string Num(decimal? v,string format="N2")=>v?.ToString(format,CultureInfo.InvariantCulture)??"—";
+    string Field(Tracker.Protocol.Resource r,string key)=>FinanceLedger.Field(r,key)??"";
+    var projects=Model.Resources("project");
+    var groups=Model.Resources("group");
+    var members=Model.Resources("member");
+    var sections=new[]{("overview","利润报表"),("projects","客户项目"),("cash","收支流水"),("tasks","任务记录"),("links","任务归属"),("resets","重置归属")};
+    var current=Model.Section;
+    var id=Model.EditId;
+}
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>项目财务 · Codex Tracker</title><style>
+:root{color-scheme:light dark;--bg:#f6f7f4;--ink:#192d28;--paper:#fff;--muted:#536761;--line:#ced8d3;--accent:#006854;--banner:#e7efeb;--alert:#815022}
+@@media(prefers-color-scheme:dark){:root{--bg:#101917;--ink:#edf5ef;--paper:#172421;--muted:#b3c8bc;--line:#394a43;--accent:#8cdaba;--banner:#22382f;--alert:#efbf87}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 "Source Sans 3","Segoe UI",sans-serif}
+main,header>div{max-width:78rem;margin:auto;padding:0 clamp(1rem,3vw,2.75rem)}header{background:var(--paper);border-bottom:1px solid var(--line)}header>div,.head,.actions,.tabs{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem}
+header>div{min-height:3.5rem}header nav,.actions,.tabs{display:flex;gap:1rem;justify-content:flex-start;flex-wrap:wrap}.head{margin:1.8rem 0 1rem}.head form{display:flex;align-items:end;gap:.5rem}
+a{color:var(--accent);text-underline-offset:4px}h1,h2,p{margin:0}h1{font-size:clamp(1.8rem,4vw,2.65rem);letter-spacing:-.04em}h2{font-size:1.3rem;margin:0 0 .8rem}h3{font-size:1rem}
+.tabs{border-bottom:1px solid var(--line);gap:clamp(.65rem,3vw,2rem)}.tabs a{text-decoration:none;color:var(--muted);padding:.7rem 0}
+.tabs [aria-current=page]{color:var(--accent);font-weight:700;border-bottom:3px solid var(--accent)}section{margin:1.4rem 0 2rem}
+.metrics,.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,12rem),1fr));gap:1rem}
+.metrics article,.panel{background:var(--paper);border:1px solid var(--line);border-radius:.6rem;padding:1.1rem}.metrics article:last-child{background:var(--banner)}.metrics strong{display:block;font:600 1.65rem/1.5 "Instrument Sans","Segoe UI",sans-serif;font-variant-numeric:tabular-nums}
+small,.muted{color:var(--muted)}.notice{color:var(--alert);border-left:3px solid var(--alert);padding-left:.65rem;margin:.55rem 0}.scroll{overflow:auto}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}th,td{padding:.67rem .75rem;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child,.left{text-align:left}th{font-size:.85rem;color:var(--muted)}tfoot{font-weight:600}.negative{color:var(--alert)}
+label{display:grid;gap:.28rem;font-weight:550}input,select,button{font:inherit;color:inherit;background:var(--paper);border:1px solid var(--line);border-radius:.3rem;padding:.45rem .65rem;max-width:100%;min-width:0}
+button{cursor:pointer}button.save{background:var(--ink);color:var(--paper);padding:.55rem 1.2rem}form .actions{margin-top:.8rem}summary{cursor:pointer;color:var(--accent)}code{overflow-wrap:anywhere}.panel+.panel{margin-top:1rem}
+@@media(max-width:40rem){.head{align-items:start}.head form{max-width:100%}.head select{max-width:70vw}.metrics{grid-template-columns:1fr 1fr}.metrics article{padding:.7rem}.metrics strong{font-size:1.2rem}}
+</style></head><body><header><div><strong>Codex Tracker</strong><nav><a href="/dashboard">用量统计</a><a href="/costs">成本核算</a><a href="/devices">设备</a></nav></div></header>
+<main><div class="head"><h1>项目财务</h1><form method="get"><input type="hidden" name="section" value="@current"><label>报表范围<select name="billId"><option value="">全部账期</option>
+@foreach(var b in Model.Costs.Bills.OrderByDescending(x=>x.Value.Start)){<option value="@b.Id" selected="@(bill==b.Id)">@b.Value.Plan · @b.Value.Start.ToString("O") 至 @b.Value.End.ToString("O")</option>}</select></label><button>查看</button></form></div>
+<nav class="tabs">@foreach(var (key,name) in sections){<a asp-route-section="@key" asp-route-billId="@bill" aria-current="@(current==key?"page":null)">@name</a>}</nav>
+@if(Model.Error!=null){<p role="alert" class="notice">@Model.Error</p>}
+@if(current=="overview"){
+<section class="metrics"><article>实际到账 · 元<strong>@Num(report.Received)</strong></article><article>已知现金成本 · 元<strong>@Num(report.KnownCost)</strong></article><article>未归属成本 · 元<strong>@Num(report.Pool.Cost)</strong></article><article>账号现金净额 · 元<strong>@Num(report.Net)</strong></article></section>
+@foreach(var w in report.Warnings){<p class="notice">@w</p>}
+<section><h2>项目排行</h2><div class="actions"><a asp-route-billId="@bill" asp-route-sort="profit">按利润排序</a><a asp-route-billId="@bill" asp-route-sort="income">按到账排序</a><a asp-page-handler="Export" asp-route-format="xlsx" asp-route-sort="@Model.Order" asp-route-billId="@bill">导出 XLSX 工作簿</a><a asp-page-handler="Export" asp-route-format="csv" asp-route-sort="@Model.Order" asp-route-billId="@bill">导出项目 CSV</a></div>
+@if(!report.Projects.Any()){<p class="muted">尚无项目。<a asp-route-section="projects">录入客户项目</a></p>}
+<div class="scroll"><table><thead><tr><th>项目 / 客户</th><th>合同额</th><th>到账</th><th>合同余额</th><th>订阅分摊</th><th>已知成本</th><th>利润</th><th>利润率 %</th><th>AI 成本率 %</th><th>活跃 h</th><th>每小时到账</th></tr></thead>
+<tbody>@foreach(var p in Model.Ranked.Append(report.Pool)){<tr><td>@p.Name<br><small>@p.Profile?.Customer</small></td><td>@Num(p.Profile?.Contract)</td><td>@Num(p.Received)</td><td>@Num(p.Outstanding)</td><td>@Num(p.Subscription)<br><small>@string.Join(" · ",p.Basis)</small></td><td>@Num(p.Cost)</td><td class="@(p.Profit<0?"negative":"")">@(p.Profit.HasValue?Num(p.Profit):"待核算")</td><td>@Num(p.Margin)</td><td>@Num(p.AiRatio)</td><td>@Num(p.Time?.ActiveMs/3600000m)</td><td>@Num(p.RevenuePerHour)</td></tr>}</tbody></table></div>
+<p class="muted">金额按人民币展示。合同余额按截至报表期末的累计到账计算。每小时到账采用已确认的项目活跃时间。</p></section>
+<section><h2>成本与耗时明细</h2><div class="scroll"><table><thead><tr><th>项目</th><th>额外 AI</th><th>付费重置等</th><th>人工</th><th>服务器</th><th>其他</th><th>总历时 h</th><th>API 等效已知小计</th><th>待核算</th></tr></thead><tbody>
+@foreach(var p in Model.Ranked.Append(report.Pool)){<tr><td>@p.Name</td><td>@Num(p.ExtraAi)</td><td>@Num(p.Reset)</td><td>@Num(p.Labor)</td><td>@Num(p.Server)</td><td>@Num(p.Other)</td><td>@Num(p.Time?.TotalMs/3600000m)</td><td>@(p.ApiKnown.Count==0?"—":string.Join(" / ",p.ApiKnown.Select(x=>x.Key+" "+Num(x.Value,"0.######"))))</td><td>@string.Join(" · ",p.Pending)</td></tr>}
+</tbody></table></div></section>
+<section><h2>订阅账期</h2><div class="scroll"><table><thead><tr><th>账期</th><th>订阅实付</th><th>已分摊</th><th>已核实 Token</th><th>Credits / 依据</th><th>API 等效</th><th>Global Reset</th><th>元 / 千万 Token</th><th>元 / 亿 Token</th></tr></thead><tbody>
+@foreach(var b in report.Bills){<tr><td><a asp-route-billId="@b.Id">@b.Plan · @b.Start.ToString("O")</a></td><td>@Num(b.PaidCny)</td><td>@Num(b.AllocatedCny)</td><td>@Num(b.Tokens,"N0")</td><td>@Num(b.Credits) · @b.Basis</td><td>@b.ApiCurrency @(b.ApiStatus=="UNKNOWN"?"—":Num(b.ApiKnown,"0.######")) · @b.ApiStatus</td><td>@b.GlobalResets</td><td>@Num(b.PerTenMillion)</td><td>@Num(b.PerTenMillion*10)</td></tr>}
+</tbody></table></div><p class="muted">Token 均价假设整笔订阅用于已采集的 Codex 用量，仅在账期结束且用量核对完整时展示。</p></section>
+ }else if(current=="tasks"){
+    var tasks=report.Tasks!;
+<section class="panel"><h2>筛选任务记录</h2><form method="get"><input type="hidden" name="section" value="tasks"><input type="hidden" name="billId" value="@bill">
+<div class="fields"><label>开始日（UTC）<input type="date" name="from" value="@Model.From?.ToString("O")"></label><label>结束日（UTC，含）<input type="date" name="to" value="@Model.To?.ToString("O")"></label>
+<label>来源设备<select name="device"><option value="">全部设备</option>@foreach(var d in tasks.SelectMany(t=>t.Devices).DistinctBy(d=>d.Key)){<option value="@d.Key" selected="@(Model.Device==d.Key)">@d.Value · @d.Key.ToString()[..8]</option>}</select></label>
+<label>模型<select name="modelId"><option value="">全部模型</option>@foreach(var m in tasks.SelectMany(t=>t.Models).Distinct().Order()){<option selected="@(Model.ModelId==m)">@m</option>}</select></label>
+<label>项目<select name="projectId"><option value="">全部项目</option><option value="@@pool" selected="@(Model.ProjectId==CostInputs.Pool)">未归属池</option>@foreach(var p in report.Projects){<option value="@p.Id" selected="@(Model.ProjectId==p.Id)">@p.Name · @p.Id[..8]</option>}</select></label>
+<label>最低 Token<input type="number" min="0" name="minTokens" value="@Model.MinTokens"></label><label>最低订阅分摊（元）<input type="number" min="0" step=".01" name="minCost" value="@Model.MinCost"></label><label>最低活跃小时<input type="number" min="0" step="any" name="minHours" value="@Model.MinHours"></label>
+<label>排序<select name="sort">@foreach(var (key,title) in new[]{("date","最近活动"),("tokens","Token 从高到低"),("cost","订阅分摊从高到低"),("hours","活跃耗时从高到低")}){<option value="@key" selected="@(Model.Order==key)">@title</option>}</select></label></div><div class="actions"><button class="save">筛选</button><a asp-route-section="tasks" asp-route-billId="@bill">清除筛选</a></div></form></section>
+<section><h2>任务记录 · @Model.Filtered.Count</h2><p class="muted">筛选条件用于选择任务。下表展示所选报表范围内的线程合计，同一线程在多个设备上只列一次。</p>
+<div class="scroll"><table><thead><tr><th>线程 / 运行会话</th><th>项目 / 任务组</th><th>来源设备</th><th>模型</th><th>已核实 Token</th><th>待核实记录</th><th>订阅分摊 · 元</th><th>活跃 h</th></tr></thead><tbody>
+@foreach(var t in Model.Filtered.Skip((Model.PageIndex-1)*50).Take(50)){<tr><td><code>@t.Thread</code><br><small>@string.Join(" / ",t.Sessions)</small></td><td>@(t.Project==null?"未归属":Model.ProjectName(Guid.Parse(t.Project))) / @t.Group</td><td>@string.Join(" / ",t.Devices.Values)</td><td>@string.Join(" / ",t.Models)</td><td>@Num(t.Tokens,"N0")</td><td>@t.Unverified</td><td>@Num(t.Subscription)</td><td>@Num(t.Time?.ActiveMs/3600000m)</td></tr>}
+</tbody></table></div><nav class="actions">@if(Model.PageIndex>1){<a asp-page="Finance" asp-all-route-data="@Model.TaskPage(Model.PageIndex-1)">上一页</a>}@if(Model.PageIndex*50<Model.Filtered.Count){<a asp-page="Finance" asp-all-route-data="@Model.TaskPage(Model.PageIndex+1)">下一页</a>}</nav></section>
+}else if(current=="projects"){
+    var profile=Model.Ledger.Profiles.FirstOrDefault(x=>x.Id==id);
+    var resource=projects.FirstOrDefault(r=>r.Id==id?.ToString());
+    var v=profile?.Value;
+<section><h2>客户项目</h2><div class="scroll"><table><thead><tr><th>项目</th><th>客户</th><th>状态</th><th>合同额 · 元</th><th>开始 / 完成</th></tr></thead><tbody>
+@foreach(var p in report.Projects){<tr><td><a asp-route-billId="@bill" asp-route-section="projects" asp-route-edit="@p.Id">@p.Name</a> <small>@p.Id[..8]</small></td><td>@p.Profile?.Customer</td><td>@FinancePage.Label(p.Profile?.Status??"待补档")</td><td>@Num(p.Profile?.Contract)</td><td>@p.Profile?.Start.ToString("O") / @p.Profile?.End?.ToString("O")</td></tr>}
+</tbody></table></div></section>
+<section class="panel"><h2>@(resource==null?"新增项目":"编辑项目")</h2><form method="post" asp-route-billId="@bill"><input type="hidden" name="action" value="profile"><input type="hidden" name="id" value="@(id??Guid.NewGuid())"><input type="hidden" name="version" value="@(profile?.Version??0)"><input type="hidden" name="resource_version" value="@(resource?.Version??0)">
+<div class="fields"><label>项目名称<input required maxlength="100" name="name" value="@(resource==null?v?.Name:Field(resource,"name"))"></label><label>客户名称<input required maxlength="160" name="customer" value="@v?.Customer"></label><label>合同金额（元）<input required type="number" min="0" step=".01" name="contract" value="@v?.Contract"></label><label>项目状态<select name="status">@foreach(var s in new[]{"ACTIVE","PLANNED","ON_HOLD","COMPLETED"}){<option value="@s" selected="@(v?.Status==s)">@FinancePage.Label(s)</option>}</select></label><label>开始日期<input required type="date" name="start" value="@v?.Start.ToString("O")"></label><label>完成日期<input type="date" name="end" value="@v?.End?.ToString("O")"></label></div>
+<div class="actions"><button class="save">保存项目</button><a asp-route-section="projects" asp-route-billId="@bill">新建项目</a></div></form></section>
+}else if(current=="cash"){
+    var entry=Model.Ledger.Cash.FirstOrDefault(x=>x.Id==id);var v=entry?.Value;
+<section><h2>收支流水</h2><a asp-page-handler="Export" asp-route-format="csv" asp-route-table="cash" asp-route-billId="@bill">导出流水 CSV</a>
+<div class="scroll"><table><thead><tr><th>凭据 / 修订</th><th>项目</th><th>记账日</th><th>类别</th><th>金额 · 元</th><th>状态</th></tr></thead><tbody>
+@foreach(var row in Model.Cash.OrderByDescending(c=>c.Value.Date)){var c=row.Value;<tr><td><a asp-route-billId="@bill" asp-route-section="cash" asp-route-edit="@row.Id">@c.Reference</a></td><td>@Model.ProjectName(c.Project)</td><td>@c.Date.ToString("O")</td><td>@FinancePage.Label(c.Category)</td><td>@Num(c.Cny)</td><td>@(c.Voided?"已作废":"有效") · v@row.Version</td></tr>}
+</tbody></table></div></section>
+<section class="panel"><h2>@(v==null?"新增流水":"修订流水")</h2><form method="post" asp-route-billId="@bill"><input type="hidden" name="action" value="cash"><input type="hidden" name="id" value="@(entry?.Id??Guid.NewGuid())"><input type="hidden" name="version" value="@(entry?.Version??0)">
+<div class="fields"><label>所属项目<select required name="project">@foreach(var p in report.Projects){<option value="@p.Id" selected="@(p.Id==v?.Project.ToString())">@p.Name · @p.Id[..8]</option>}</select></label><label>流水类别<select name="category">@foreach(var c in new[]{"RECEIPT","AI","LABOR","SERVER","OTHER"}){<option value="@c" selected="@(v?.Category==c)">@FinancePage.Label(c)</option>}</select></label><label>实际收付日<input required type="date" name="date" value="@v?.Date.ToString("O")"></label><label>实付或到账（元）<input required type="number" min=".01" step=".01" name="cny" value="@v?.Cny"></label><label>唯一凭据编号<input required maxlength="160" name="reference" value="@v?.Reference"></label>
+@if(v!=null){<label>状态<select name="voided"><option value="false" selected="@(!v.Voided)">有效</option><option value="true" selected="@v.Voided">作废</option></select></label>}
+</div><div class="actions"><button class="save">保存流水</button><a asp-route-section="cash" asp-route-billId="@bill">新增一笔</a></div></form></section>
+}else if(current=="links"){
+    var group=groups.FirstOrDefault(g=>g.Id==id?.ToString());
+    var member=members.FirstOrDefault(g=>g.Id==id?.ToString());
+<section><h2>任务组和会话</h2><div class="scroll"><table><thead><tr><th>任务组</th><th>项目</th><th>已关联线程或会话</th></tr></thead><tbody>
+@foreach(var g in groups){<tr><td><a asp-route-section="links" asp-route-edit="@g.Id">@Field(g,"name")</a> · @g.Id[..8]</td><td>@(Guid.TryParse(Field(g,"project_id"),out var pid)?Model.ProjectName(pid):"未归属")</td><td>@foreach(var m in members.Where(m=>Field(m,"group_id")==g.Id)){<a asp-route-section="links" asp-route-edit="@m.Id">@(Field(m,"thread_id")+Field(m,"session_id"))</a><br>}</td></tr>}
+</tbody></table></div></section>
+<section class="panel"><h2>维护任务组</h2><form method="post"><input type="hidden" name="action" value="group"><input type="hidden" name="id" value="@(group?.Id??Guid.NewGuid().ToString())"><input type="hidden" name="version" value="@(group?.Version??0)"><div class="fields"><label>任务组名称<input required maxlength="100" name="name" value="@(group==null?"":Field(group,"name"))"></label><label>归属项目<select name="project"><option value="">未归属</option>@foreach(var p in projects){<option value="@p.Id" selected="@(group!=null && Field(group,"project_id")==p.Id)">@Field(p,"name") · @p.Id[..8]</option>}</select></label></div><div class="actions"><button class="save">保存任务组</button><a asp-route-section="links">新增任务组或关联</a></div></form></section>
+<section class="panel"><h2>关联会话</h2><form method="post"><input type="hidden" name="id" value="@(member?.Id??Guid.NewGuid().ToString())"><input type="hidden" name="version" value="@(member?.Version??0)"><div class="fields"><label>任务组<select required name="group">@foreach(var g in groups){<option value="@g.Id" selected="@(member!=null && Field(member,"group_id")==g.Id)">@Field(g,"name") · @g.Id[..8]</option>}</select></label><label>标识类型<select name="target_kind"><option value="thread">线程 ID</option><option value="session" selected="@(member!=null && Field(member,"session_id")!="")">运行会话 ID</option></select></label><label>已同步的标识<input required name="target" list="targets" value="@(member==null?"":Field(member,"thread_id")+Field(member,"session_id"))"></label><datalist id="targets">
+@foreach(var t in Model.Resources("thread")){<option value="@Field(t,"thread_id")"></option>@foreach(var s in t.Value!.Value.GetProperty("sessions").EnumerateArray()){<option value="@s.GetString()"></option>}}
+</datalist></div><div class="actions"><button class="save" name="action" value="member">保存关联</button>@if(member!=null){<button name="action" value="unlink">解除关联</button>}</div></form></section>
+}else{
+<section><h2>重置支付归属</h2><p class="muted">选择成本账本中已有的支付凭据，分配所属项目。外币按支付时实际折合人民币金额填写。</p>
+@foreach(var reset in Model.Costs.Resets.Where(x=>(bill==null || x.Value.BillId==bill) && x.Value.Cash>0)){var link=Model.Ledger.Resets.SingleOrDefault(l=>l.Id==reset.Id);var match=link?.Value.SourceVersion==reset.Version;
+<div class="panel"><form method="post" asp-route-billId="@bill"><input type="hidden" name="action" value="reset"><input type="hidden" name="id" value="@reset.Id"><input type="hidden" name="version" value="@(link?.Version??0)"><input type="hidden" name="source_version" value="@reset.Version"><h3>@reset.Value.Reference · @reset.Value.Currency @Num(reset.Value.Cash)</h3>
+<div class="fields"><label>归属项目<select name="project"><option value="">未归属池</option>@foreach(var p in projects){<option value="@p.Id" selected="@(match && p.Id==link?.Value.Project?.ToString())">@Field(p,"name") · @p.Id[..8]</option>}</select></label><label>实付折合人民币<input required type="number" min=".01" step=".01" name="cny" value="@(reset.Value.Currency=="CNY"?reset.Value.Cash:match?link?.Value.Cny:null)"></label></div><div class="actions"><button class="save">保存重置归属</button></div></form></div>}
+<a href="/costs?kind=reset">打开重置账本</a></section>
+}
+</main></body></html>

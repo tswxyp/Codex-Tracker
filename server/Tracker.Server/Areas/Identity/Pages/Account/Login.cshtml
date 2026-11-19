@@ -1,0 +1,12 @@
+@page
+@model Tracker.Server.LoginPage
+<!doctype html>
+<html lang="zh"><meta charset="utf-8"><title>登录 · Codex Tracker</title>
+<main><h1>登录 Codex Tracker</h1>
+<form method="post">
+    <div asp-validation-summary="All" role="alert"></div>
+    <p><label>邮箱 <input asp-for="Input.Email" type="email" autocomplete="username" required></label></p>
+    <p><label>密码 <input asp-for="Input.Password" type="password" autocomplete="current-password" required></label></p>
+    <button>登录</button>
+</form>
+<p><a href="/Identity/Account/ForgotPassword">找回密码</a> · <a href="/Identity/Account/Register">注册账号</a></p></main></html>
