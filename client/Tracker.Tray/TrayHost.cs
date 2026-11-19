@@ -42,7 +42,13 @@ internal sealed class TrayHost:ApplicationContext
     long locatorEpoch=-1;
     string[] requestedTitles=[];
     readonly NotifyIcon icon;
-    readonly ToolStripMenuItem pause,status,login,costs,subscription,report,language,currency,palette,quit;
+    readonly ToolStripMenuItem pause,status,login,costs,subscription,report,language,currency,palette,quit,about,sampling,samplePreview;
+    CancellationTokenSource? sampleConsent;
+    CalibrationSample? sample;
+    bool sampleReading;
+    long consentAt,nextSampleRead,sessionGeneration;
+    bool sampleUnavailable;
+    CommunityDialog? sampleDialog;
     readonly System.Windows.Forms.Timer tick=new(){Interval=50};
     readonly Overlay detail=new();
     readonly IncomeActionBar incomeActions=new();
@@ -78,6 +84,9 @@ internal sealed class TrayHost:ApplicationContext
         status=new("等待 Codex"){Enabled=false};
         pause=new(paused?"恢复监控":"暂停监控",null,(_,_)=>SetPaused(!paused));
         login=new("登录 Windows 时启动",null,(_,_)=>ToggleLogin());
+        sampling=new("",null,(_,_)=>ToggleSampling());
+        samplePreview=new("",null,(_,_)=>ShowCommunity(CommunityPage.Preview));
+        about=new("",null,(_,_)=>ShowCommunity(CommunityPage.About));
         costs=new ToolStripMenuItem("",null,(_,_)=>{
             if(CostDisplay.ManagementUrl() is Uri url){
                 try{Process.Start(new ProcessStartInfo(url.AbsoluteUri){UseShellExecute=true});}
@@ -94,7 +103,7 @@ internal sealed class TrayHost:ApplicationContext
         foreach(string key in Money.Codes)
             currency.DropDownItems.Add(new ToolStripMenuItem(key,null,(_,_)=>ChangeOptions(options with {Currency=options.Currency==key?"auto":key})){Tag=key});
         quit=new("",null,(_,_)=>ExitThread());
-        menu.Items.AddRange(new ToolStripItem[]{report,subscription,language,currency,palette,new ToolStripSeparator(),status,pause,login,costs,new ToolStripSeparator(),quit});
+        menu.Items.AddRange(new ToolStripItem[]{report,subscription,language,currency,palette,new ToolStripSeparator(),status,pause,login,sampling,samplePreview,costs,new ToolStripSeparator(),about,quit});
         TranslateMenu();
         using var iconStream=typeof(TrayHost).Assembly.GetManifestResourceStream("CodexTracker.Tray.Tracker.ico")!;
         trayIcon=new Icon(iconStream,SystemInformation.SmallIconSize);
@@ -108,6 +117,9 @@ internal sealed class TrayHost:ApplicationContext
             login.Checked=string.Equals(key?.GetValue("CodexTracker.Tray") as string,LoginCommand,StringComparison.OrdinalIgnoreCase);
         };
         tick.Tick+=(_,_)=>Refresh();tick.Start();
+        _=menu.Handle;
+        SystemEvents.SessionSwitch+=OnSessionSwitch;
+        SystemEvents.SessionEnding+=OnSessionEnding;
         _=RefreshIpCurrency();
         try{
             if(settingsStore.ReadPlan()==null && settingsStore.FirstFeePrompt()){
@@ -117,6 +129,65 @@ internal sealed class TrayHost:ApplicationContext
         }catch(Exception e) when(e is IOException or SqliteException or UnauthorizedAccessException){ }
     }
     string T(string zh,string en)=>options.T(zh,en);
+    DialogResult ShowCommunity(CommunityPage page)
+    {
+        if(editingIncome)return DialogResult.Cancel;
+        editingIncome=true;HideAll();
+        try{
+            using var dialog=new CommunityDialog(options,page,sample,sampleUnavailable);
+            if(page!=CommunityPage.About)sampleDialog=dialog;
+            return dialog.ShowDialog();
+        }finally{sampleDialog=null;editingIncome=false;}
+    }
+    void ToggleSampling()
+    {
+        if(sampleConsent!=null){StopSampling();return;}
+        long generation=Interlocked.Read(ref sessionGeneration);
+        if(paused || ShowCommunity(CommunityPage.Consent)!=DialogResult.OK || generation!=Interlocked.Read(ref sessionGeneration))return;
+        consentAt=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        nextSampleRead=Environment.TickCount64+60_000;
+        sampleConsent=new();sampling.Checked=true;TranslateMenu();
+    }
+    void StopSampling()
+    {
+        var prior=sampleConsent;sampleConsent=null;
+        prior?.Cancel();prior?.Dispose();
+        sample=null;sampleReading=false;sampleUnavailable=false;
+        sampling.Checked=false;samplePreview.Available=false;
+        sampleDialog?.Close();
+    }
+    void OnSessionSwitch(object? sender,SessionSwitchEventArgs e)
+    {
+        if(e.Reason is SessionSwitchReason.SessionLock or SessionSwitchReason.SessionLogoff or
+            SessionSwitchReason.ConsoleDisconnect or SessionSwitchReason.RemoteDisconnect or SessionSwitchReason.SessionLogon)EndConsent();
+    }
+    void OnSessionEnding(object? sender,SessionEndingEventArgs e)=>EndConsent();
+    void EndConsent()
+    {
+        Interlocked.Increment(ref sessionGeneration);
+        try{if(menu.InvokeRequired)menu.BeginInvoke(StopSampling);else StopSampling();}
+        catch(InvalidOperationException) when(menu.Disposing || menu.IsDisposed){ }
+    }
+    async Task ReadSample(CancellationTokenSource consent)
+    {
+        sampleReading=true;
+        var token=consent.Token;
+        long since=consentAt;
+        try{
+            var result=await Task.Run(()=>CalibrationSample.Read(database,root,since,settingsStore.Speeds.Current,token),token);
+            if(sampleConsent!=consent || token.IsCancellationRequested)return;
+            sample=result;sampleUnavailable=false;
+            if(result!=null)TranslateMenu();
+        }catch(OperationCanceledException) when(token.IsCancellationRequested){ }
+        catch(Exception e) when(e is SqliteException or IOException or UnauthorizedAccessException or OverflowException or FormatException){
+            if(sampleConsent==consent)sampleUnavailable=true;
+        }finally{
+            if(sampleConsent==consent){
+                sampleReading=false;nextSampleRead=Environment.TickCount64+60_000;
+                sampleDialog?.UpdatePreview(sample,sampleUnavailable);
+            }
+        }
+    }
     void TranslateMenu()
     {
         string label=T("语言","Language");
@@ -133,6 +204,11 @@ internal sealed class TrayHost:ApplicationContext
         }
         costs.Text=T("自托管账单","Self-hosted billing");quit.Text=T("退出","Exit");
         login.Text=T("登录 Windows 时启动","Start at Windows sign-in");
+        about.Text=T("关于","About");
+        sampling.Text=T("我愿意帮助采集并上传用量样本","Contribute usage samples");
+        sampling.Enabled=!paused;
+        samplePreview.Available=sampleConsent!=null;
+        samplePreview.Text=sample==null?T("查看采样进度（仅本机）","Sampling progress (local only)"):T("查看本次样本（仅本机）","View sample (local only)");
         pause.Text=paused?T("恢复监控","Resume monitoring"):T("暂停监控","Pause monitoring");
         foreach(ToolStripMenuItem item in language.DropDownItems){
             item.Checked=Equals(item.Tag,options.Language);
@@ -241,6 +317,7 @@ internal sealed class TrayHost:ApplicationContext
         {
             if(paused)File.Delete(pausedFile);else File.WriteAllText(pausedFile,"paused");
             paused=value;
+            if(paused)StopSampling();
             TranslateMenu();
             guard.Enable(false);worker.Stop();data=null;frame=null;invalidatedAt=Environment.TickCount64;nextData=0;HideAll();
         }
@@ -260,6 +337,7 @@ internal sealed class TrayHost:ApplicationContext
         long now=Environment.TickCount64;
         if(paused){status.Text=T("用量记录已暂停","Usage recording paused");icon.Text="Codex Tracker · "+status.Text;return;}
         worker.Tick();
+        if(sampleConsent is {} consent && sample==null && !sampleReading && now>=nextSampleRead)_=ReadSample(consent);
         if(reading?.IsCompleted==true)
         {
             try{var result=reading.GetAwaiter().GetResult();if(!discardRead)data=result;info=T("等待聊天列表","Waiting for chats");}
@@ -396,6 +474,8 @@ internal sealed class TrayHost:ApplicationContext
     {
         if(disposing)
         {
+            SystemEvents.SessionSwitch-=OnSessionSwitch;SystemEvents.SessionEnding-=OnSessionEnding;
+            StopSampling();
             tick.Stop();tick.Dispose();guard.Dispose();worker.Dispose();icon.Visible=false;icon.Dispose();menu.Dispose();
             trayIcon.Dispose();
             incomeActions.Dispose();detail.Dispose();

@@ -95,8 +95,8 @@ internal static class WeeklyCalibration
         return result;
     }
 
-    sealed record Interval(long Start,long End);
-    static List<Interval> Intervals(List<QuotaWindow> windows,QuotaWindow target)
+    internal sealed record Interval(long Start,long End);
+    internal static List<Interval> Intervals(List<QuotaWindow> windows,QuotaWindow target)
     {
         var result=new List<Interval>();
         QuotaWindow? previous=null,high=null;

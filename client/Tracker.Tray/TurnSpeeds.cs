@@ -30,6 +30,7 @@ internal sealed partial class TurnSpeedHistory(string directory,string root)
     bool refreshing,loaded;
     long nextRefresh;
     string CacheFile=>Path.Combine(directory,"turn-speeds.sqlite");
+    internal TurnSpeeds Current {get {lock(gate)return current;}}
 
     internal TurnSpeeds Snapshot()
     {
