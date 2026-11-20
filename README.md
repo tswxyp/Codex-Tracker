@@ -21,6 +21,8 @@ Windows 本地 Codex 用量统计工具，采用 MIT 许可。**Phase 1** 包含
 
 本版的自愿采样完全在本机运行，没有上传接口或待发送队列。确认前的历史用量不会补入样本。取消勾选、暂停监控、锁屏、断开 Windows 会话或退出 Tracker 后，授权和内存样本都会清除。下次使用需要重新确认。现有本机统计账本独立于自愿采样。[采样源码](client/Tracker.Tray/CalibrationSample.cs)
 
+项目的 Cloudflare Worker 目前仅提供公开状态查询。打开状态页可见 `uploadsEnabled: false`。Worker 拒绝 POST 请求，预留的 D1 数据库尚未与 Worker 绑定。[托管状态](https://codex-tracker-calibration.tswxyp.workers.dev/health) · [Worker 源码](deploy/calibration-host/worker.js)
+
 ## 项目盈利管理
 
 Phase 5 候选版在自托管实例的 `/finance` 提供客户项目、合同、分次回款和支出流水。用任务组关联已同步的线程或运行会话，按全部或单一账期核对到账、未收合同款、项目利润及未归属成本，可导出 CSV 和 XLSX。Windows 端继续使用 Phase 4 客户端。
