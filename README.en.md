@@ -1,5 +1,11 @@
 # Codex Tracker
 
+[![Latest stable release](https://img.shields.io/github/v/release/tswxyp/Codex-Tracker?label=release&logo=github)](https://github.com/tswxyp/Codex-Tracker/releases/latest)
+[![Windows installer downloads across releases](https://img.shields.io/github/downloads/tswxyp/Codex-Tracker/CodexTracker-Setup-x64.exe?displayAssetName=false&label=installer%20downloads)](https://github.com/tswxyp/Codex-Tracker/releases)
+[![Windows 11 x64](https://img.shields.io/badge/Windows%2011-x64-0078D4)](#quick-start)
+[![Project license](https://img.shields.io/github/license/tswxyp/Codex-Tracker?label=license)](LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/tswxyp/Codex-Tracker?style=flat&label=Stars)](https://github.com/tswxyp/Codex-Tracker/stargazers)
+
 [简体中文](README.md) · **English** · [日本語](README.ja.md) · [한국어](README.ko.md)
 
 **What did you earn on that client project after paying for Codex?** Codex Tracker is a Windows tray app for people who do client work in Codex. Hover over a chat in the Codex sidebar to see its token usage and its estimated share of your subscription fee. Enter income for a chat or a project to see its profit or loss. I believe most of you come out ahead on most jobs. Click **Recent profit and loss** on the card to see how that chat did over the period you choose.

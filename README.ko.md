@@ -1,5 +1,11 @@
 # Codex Tracker
 
+[![최신 정식 버전](https://img.shields.io/github/v/release/tswxyp/Codex-Tracker?label=%EB%B2%84%EC%A0%84&logo=github)](https://github.com/tswxyp/Codex-Tracker/releases/latest)
+[![모든 버전의 Windows 설치 파일 누적 다운로드 수](https://img.shields.io/github/downloads/tswxyp/Codex-Tracker/CodexTracker-Setup-x64.exe?displayAssetName=false&label=%EC%84%A4%EC%B9%98%20%ED%8C%8C%EC%9D%BC%20%EB%8B%A4%EC%9A%B4%EB%A1%9C%EB%93%9C)](https://github.com/tswxyp/Codex-Tracker/releases)
+[![지원 환경 Windows 11 x64](https://img.shields.io/badge/Windows%2011-x64-0078D4)](#quick-start)
+[![프로젝트 라이선스](https://img.shields.io/github/license/tswxyp/Codex-Tracker?label=%EB%9D%BC%EC%9D%B4%EC%84%A0%EC%8A%A4)](LICENSE)
+[![GitHub 스타 수](https://img.shields.io/github/stars/tswxyp/Codex-Tracker?style=flat&label=Stars)](https://github.com/tswxyp/Codex-Tracker/stargazers)
+
 [简体中文](README.md) · [English](README.en.md) · [日本語](README.ja.md) · **한국어**
 
 **Codex로 고객 일을 마쳤을 때 구독료를 빼고 얼마나 남았을까요?** Codex Tracker는 외주 프로젝트의 수익을 확인하는 Windows 트레이 앱입니다. Codex 사이드바에서 대화 제목에 마우스를 올리면 사용한 토큰 수와 그 대화에 쓰인 구독료 추정액을 볼 수 있습니다. 대화나 프로젝트의 수입을 입력하면 각각의 손익을 확인할 수 있습니다. 저는 여러분이 대부분의 일에서 이익을 내고 계실 거라고 생각합니다. 카드에서 **최근 손익**을 클릭하면 선택한 기간 동안 해당 대화에서 얼마가 남았는지 볼 수 있습니다.

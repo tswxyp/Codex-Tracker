@@ -1,5 +1,11 @@
 # Codex Tracker
 
+[![最新の正式版](https://img.shields.io/github/v/release/tswxyp/Codex-Tracker?label=%E3%83%AA%E3%83%AA%E3%83%BC%E3%82%B9&logo=github)](https://github.com/tswxyp/Codex-Tracker/releases/latest)
+[![全バージョンの Windows インストーラーの累計ダウンロード数](https://img.shields.io/github/downloads/tswxyp/Codex-Tracker/CodexTracker-Setup-x64.exe?displayAssetName=false&label=%E3%82%A4%E3%83%B3%E3%82%B9%E3%83%88%E3%83%BC%E3%83%A9%E3%83%BC%E3%81%AEDL%E6%95%B0)](https://github.com/tswxyp/Codex-Tracker/releases)
+[![対応環境 Windows 11 x64](https://img.shields.io/badge/Windows%2011-x64-0078D4)](#quick-start)
+[![プロジェクトのライセンス](https://img.shields.io/github/license/tswxyp/Codex-Tracker?label=%E3%83%A9%E3%82%A4%E3%82%BB%E3%83%B3%E3%82%B9)](LICENSE)
+[![GitHub スター数](https://img.shields.io/github/stars/tswxyp/Codex-Tracker?style=flat&label=Stars)](https://github.com/tswxyp/Codex-Tracker/stargazers)
+
 [简体中文](README.md) · [English](README.en.md) · **日本語** · [한국어](README.ko.md)
 
 **Codex で受けた仕事は、利用料を差し引くといくら手元に残るのか。** Codex Tracker は、受託案件の収支を確認するための Windows 常駐アプリです。Codex のサイドバーでチャット名にカーソルを合わせると、その仕事で使ったトークン数と、月額料金のうちその仕事にかかった推定額が分かります。チャットまたは案件の収入を入力すると、それぞれの損益が分かります。皆さんの仕事の多くは黒字になっていると思います。カードの **最近の損益** をクリックすると、選んだ期間のそのチャットの損益を確認できます。
