@@ -65,7 +65,8 @@ internal sealed class CommunityDialog:Form
         if(consent){
             var decline=Button(T("暂不采集","Not now"),DialogResult.Cancel);
             Button(T("确认采集","Confirm sampling"),DialogResult.OK);
-            AcceptButton=CancelButton=decline;ActiveControl=decline;
+            AcceptButton=CancelButton=decline;
+            Shown+=(_,_)=>decline.Focus();
         }else AcceptButton=CancelButton=Button(T("关闭","Close"),DialogResult.OK);
         Add(actions);
         var theme=new FinanceTheme(FinanceTheme.SystemDark(),options.RedGain);theme.Apply(this);
