@@ -44,10 +44,9 @@ internal sealed class TrayHost:ApplicationContext
     readonly NotifyIcon icon;
     readonly ToolStripMenuItem pause,status,login,costs,subscription,report,language,currency,palette,quit,about,sampling,samplePreview;
     CancellationTokenSource? sampleConsent;
-    CalibrationSample? sample;
-    SampleSubmission? submission;
-    bool sampleReading;
-    long consentAt,nextSampleRead,sessionGeneration,consentGeneration;
+    readonly List<SampleSubmission> samples=[];
+    bool sampleReading,sampleSending;
+    long consentAt,sampleCursor,nextSampleRead,sessionGeneration,consentGeneration;
     bool sampleUnavailable;
     CommunityDialog? sampleDialog;
     readonly System.Windows.Forms.Timer tick=new(){Interval=50};
@@ -138,8 +137,8 @@ internal sealed class TrayHost:ApplicationContext
             using var dialog=new CommunityDialog(options,page);
             if(page!=CommunityPage.About)sampleDialog=dialog;
             if(page==CommunityPage.Preview){
-                dialog.UpdatePreview(sample,sampleUnavailable,submission);
-                dialog.SubmissionRequested+=reportMultitasking=>_=SubmitSample(reportMultitasking);
+                dialog.UpdatePreview(samples,sampleUnavailable);
+                dialog.ExclusionRequested+=item=>_=ReportSample(item);
             }
             return dialog.ShowDialog();
         }finally{sampleDialog=null;editingIncome=false;}
@@ -150,7 +149,7 @@ internal sealed class TrayHost:ApplicationContext
         long generation=Interlocked.Read(ref sessionGeneration);
         if(paused || ShowCommunity(CommunityPage.Consent)!=DialogResult.OK || generation!=Interlocked.Read(ref sessionGeneration))return;
         consentAt=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        consentGeneration=generation;
+        consentGeneration=generation;sampleCursor=consentAt;
         nextSampleRead=Environment.TickCount64+60_000;
         sampleConsent=new();sampling.Checked=true;TranslateMenu();
     }
@@ -158,7 +157,7 @@ internal sealed class TrayHost:ApplicationContext
     {
         var prior=sampleConsent;sampleConsent=null;
         prior?.Cancel();prior?.Dispose();
-        sample=null;submission=null;sampleReading=false;sampleUnavailable=false;
+        samples.Clear();sampleReading=false;sampleSending=false;sampleUnavailable=false;
         sampling.Checked=false;samplePreview.Available=false;
         sampleDialog?.Close();
     }
@@ -168,19 +167,35 @@ internal sealed class TrayHost:ApplicationContext
             SessionSwitchReason.ConsoleDisconnect or SessionSwitchReason.RemoteDisconnect or SessionSwitchReason.SessionLogon)EndConsent();
     }
     void OnSessionEnding(object? sender,SessionEndingEventArgs e)=>EndConsent();
-    async Task SubmitSample(bool reportMultitasking)
+    async Task ReportSample(SampleSubmission current)
     {
-        if(sampleConsent is not {} consent || submission is not {} current ||
+        if(sampleConsent is not {} consent || !samples.Contains(current) ||
             consentGeneration!=Interlocked.Read(ref sessionGeneration))return;
-        var send=reportMultitasking?current.ReportMultitaskingAsync(consent.Token):
-            current.SendAsync(database,root,settingsStore.Speeds.Current,consent.Token);
-        sampleDialog?.UpdatePreview(sample,sampleUnavailable,current);
+        var send=current.ReportMultitaskingAsync(consent.Token);
+        sampleDialog?.UpdatePreview(samples,sampleUnavailable);
         await send;
-        if(sampleConsent==consent)sampleDialog?.UpdatePreview(sample,sampleUnavailable,current);
+        if(sampleConsent==consent)sampleDialog?.UpdatePreview(samples,sampleUnavailable);
+    }
+    async Task SendNextSample(CancellationTokenSource consent,SampleSubmission current)
+    {
+        sampleSending=true;
+        try{
+            var send=current.NeedsUpload?current.SendAsync(database,root,consentAt,settingsStore.Speeds.Current,consent.Token):
+                current.ReportMultitaskingAsync(consent.Token);
+            sampleDialog?.UpdatePreview(samples,sampleUnavailable);
+            await send;
+        }finally{
+            if(sampleConsent==consent){
+                sampleSending=false;
+                if(current.State is UploadState.Ineligible or UploadState.Rejected)samples.Remove(current);
+                sampleDialog?.UpdatePreview(samples,sampleUnavailable);
+            }
+        }
     }
     void EndConsent()
     {
         Interlocked.Increment(ref sessionGeneration);
+        try{Volatile.Read(ref sampleConsent)?.Cancel();}catch(ObjectDisposedException){ }
         try{if(menu.InvokeRequired)menu.BeginInvoke(StopSampling);else StopSampling();}
         catch(InvalidOperationException) when(menu.Disposing || menu.IsDisposed){ }
     }
@@ -188,19 +203,23 @@ internal sealed class TrayHost:ApplicationContext
     {
         sampleReading=true;
         var token=consent.Token;
-        long since=consentAt;
+        long since=consentAt,cursor=sampleCursor;
+        var slots=new int[CalibrationSample.MaxPoints+1];
+        for(int i=1;i<slots.Length;i++)slots[i]=CalibrationSample.PerSize-samples.Count(s=>s.Sample.Window.Points==i);
         try{
-            var result=await Task.Run(()=>CalibrationSample.Read(database,root,since,settingsStore.Speeds.Current,token),token);
+            var result=await Task.Run(()=>CalibrationSample.Read(database,root,since,cursor,slots,settingsStore.Speeds.Current,token),token);
             if(sampleConsent!=consent || token.IsCancellationRequested)return;
-            sample=result;sampleUnavailable=false;
-            if(result!=null){submission=new(result);TranslateMenu();}
+            sampleUnavailable=false;
+            foreach(var sample in result){
+                samples.Add(new(sample));sampleCursor=sample.Window.End;
+            }
         }catch(OperationCanceledException) when(token.IsCancellationRequested){ }
         catch(Exception e) when(e is SqliteException or IOException or UnauthorizedAccessException or OverflowException or FormatException){
             if(sampleConsent==consent)sampleUnavailable=true;
         }finally{
             if(sampleConsent==consent){
                 sampleReading=false;nextSampleRead=Environment.TickCount64+60_000;
-                sampleDialog?.UpdatePreview(sample,sampleUnavailable,submission);
+                sampleDialog?.UpdatePreview(samples,sampleUnavailable);
             }
         }
     }
@@ -224,7 +243,7 @@ internal sealed class TrayHost:ApplicationContext
         sampling.Text=T("我愿意帮助采集并上传用量样本","Contribute usage samples");
         sampling.Enabled=!paused;
         samplePreview.Available=sampleConsent!=null;
-        samplePreview.Text=sample==null?T("查看采样进度","Sampling progress"):T("查看本次样本","View this sample");
+        samplePreview.Text=T("查看采样进度","Sampling progress");
         pause.Text=paused?T("恢复监控","Resume monitoring"):T("暂停监控","Pause monitoring");
         foreach(ToolStripMenuItem item in language.DropDownItems){
             item.Checked=Equals(item.Tag,options.Language);
@@ -353,7 +372,10 @@ internal sealed class TrayHost:ApplicationContext
         long now=Environment.TickCount64;
         if(paused){status.Text=T("用量记录已暂停","Usage recording paused");icon.Text="Codex Tracker · "+status.Text;return;}
         worker.Tick();
-        if(sampleConsent is {} consent && sample==null && !sampleReading && now>=nextSampleRead)_=ReadSample(consent);
+        if(sampleConsent is {} consent && !consent.IsCancellationRequested && consentGeneration==Interlocked.Read(ref sessionGeneration)){
+            if(samples.Count<CalibrationSample.MaxPoints*CalibrationSample.PerSize && !sampleReading && now>=nextSampleRead)_=ReadSample(consent);
+            if(!sampleSending && samples.FirstOrDefault(s=>s.NeedsRetry && now>=s.RetryAt) is {} next)_=SendNextSample(consent,next);
+        }
         if(reading?.IsCompleted==true)
         {
             try{var result=reading.GetAwaiter().GetResult();if(!discardRead)data=result;info=T("等待聊天列表","Waiting for chats");}

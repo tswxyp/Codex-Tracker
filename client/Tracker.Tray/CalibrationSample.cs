@@ -5,14 +5,16 @@ namespace CodexTracker.Tray;
 
 // The interval stays in memory for a final local check. It is never included in the wire payload.
 internal sealed record CalibrationSample(string Model,string Effort,string Speed,long Input,long Output,
-    long CacheRead,long CacheWrite,long Reasoning)
+    long CacheRead,long CacheWrite,long Reasoning,long? SnapshotTokens,WeeklyCalibration.Interval Window)
 {
-    internal WeeklyCalibration.Interval? Window {get;private init;}
-    internal static CalibrationSample? Read(string path,string root,long consent,TurnSpeeds speeds,CancellationToken stop)
+    internal const int PerSize=2, MaxPoints=3;
+    internal static List<CalibrationSample> Read(string path,string root,long consent,long cursor,int[] slots,
+        TurnSpeeds speeds,CancellationToken stop)
     {
         long now=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         long from=Math.Max(consent,now-2*60*60_000L);
-        if(now-from<60_000 || !File.Exists(path))return null;
+        var samples=new List<CalibrationSample>();
+        if(now-from<60_000 || !File.Exists(path))return samples;
         stop.ThrowIfCancellationRequested();
         using var db=Data.Open(path,SqliteOpenMode.ReadOnly);
         using(var temp=db.CreateCommand()){temp.CommandText="PRAGMA temp_store=MEMORY";temp.ExecuteNonQuery();}
@@ -22,6 +24,36 @@ internal sealed record CalibrationSample(string Model,string Effort,string Speed
         q.Parameters.AddWithValue("$root",root);
         q.Parameters.AddWithValue("$from",from);
         q.Parameters.AddWithValue("$to",now);
+        var spans=ReadSpans(q,stop);
+        PrepareIntervalQuery(db,q,speeds);
+        foreach(var span in Candidates(spans)){
+            stop.ThrowIfCancellationRequested();
+            if(span.End>now-120_000)break;
+            if(span.Start<cursor || slots[span.Points]==0)continue;
+            if(ReadInterval(q,span) is not {} sample)continue;
+            samples.Add(sample);slots[span.Points]--;cursor=span.End;
+            if(slots.All(n=>n==0))break;
+        }
+        return samples;
+    }
+
+    // Adjoining rises can form one larger observation. Never bridge a broken meter series.
+    static IEnumerable<WeeklyCalibration.Interval> Candidates(List<WeeklyCalibration.Interval> spans)
+    {
+        for(int i=0;i<spans.Count;i++){
+            var span=spans[i];
+            yield return span;
+            for(int j=i-1;j>=0 && spans[j].End==span.Start;j--){
+                int points=span.Points+spans[j].Points;
+                if(points>MaxPoints)break;
+                span=new(spans[j].Start,span.End,points);
+                yield return span;
+            }
+        }
+    }
+
+    static List<WeeklyCalibration.Interval> ReadSpans(SqliteCommand q,CancellationToken stop)
+    {
         // Project the shared weekly meter inside SQLite; the sampler never reads raw log bodies.
         q.CommandText="""
             WITH meters AS (
@@ -30,7 +62,8 @@ internal sealed record CalibrationSample(string Model,string Effort,string Speed
                 FROM Event e WHERE device_id=(SELECT id FROM Device WHERE root=$root) AND kind='snapshot'
                     AND time_ms>$from AND time_ms<=$to
             )
-            SELECT seen,json_extract(w.value,'$.used_percent'),json_extract(w.value,'$.resets_at')
+            SELECT seen,json_extract(w.value,'$.used_percent'),json_extract(w.value,'$.resets_at'),
+                json_extract(raw,'$.payload.rate_limits.plan_type')
             FROM meters,json_each(CASE WHEN json_valid(raw) THEN json_extract(raw,'$.payload.rate_limits') END) w
             WHERE w.key IN ('primary','secondary') AND w.type='object'
                 AND json_extract(w.value,'$.window_minutes')=10080
@@ -46,29 +79,22 @@ internal sealed record CalibrationSample(string Model,string Effort,string Speed
             decimal percent=r.GetDecimal(1);
             if(seconds is <=0 or >253402300799 || percent is <0 or >100)continue;
             long reset=seconds*1000;
-            if(seen>=reset-QuotaWindow.Week && seen<reset)windows.Add(new(seen,reset,percent));
+            if(seen>=reset-QuotaWindow.Week && seen<reset)windows.Add(new(seen,reset,percent,r.IsDBNull(3)?null:r.GetString(3)));
         }
-        if(windows.Count==0)return null;
-        var spans=WeeklyCalibration.Intervals(windows,windows[^1]);
-        // Only closed intervals with time for the incremental ledger to catch up.
-        PrepareIntervalQuery(db,q,speeds);
-        foreach(var span in spans.AsEnumerable().Reverse()){
-            stop.ThrowIfCancellationRequested();
-            if(span.End<=now-120_000 && ReadInterval(q,span) is {} sample)return sample;
-        }
-        return null;
+        return windows.Count==0?[]:WeeklyCalibration.Intervals(windows,windows[^1],MaxPoints);
     }
 
-    internal bool StillMatches(string path,string root,TurnSpeeds speeds,CancellationToken stop)
+    internal bool StillMatches(string path,string root,long consent,TurnSpeeds speeds,CancellationToken stop)
     {
         stop.ThrowIfCancellationRequested();
-        if(Window==null)return false;
         using var db=Data.Open(path,SqliteOpenMode.ReadOnly);
         using var q=db.CreateCommand();
         q.CommandText="PRAGMA temp_store=MEMORY";q.ExecuteNonQuery();
+        using var tx=db.BeginTransaction(deferred:true);q.Transaction=tx;
         q.Parameters.AddWithValue("$root",root);
-        q.Parameters.Add("$from",SqliteType.Integer);
-        q.Parameters.Add("$to",SqliteType.Integer);
+        q.Parameters.AddWithValue("$from",Math.Max(consent,Window.Start-20*60_000));
+        q.Parameters.AddWithValue("$to",Window.End);
+        if(!Candidates(ReadSpans(q,stop)).Contains(Window))return false;
         PrepareIntervalQuery(db,q,speeds);
         return ReadInterval(q,Window)==this;
     }
@@ -92,6 +118,11 @@ internal sealed record CalibrationSample(string Model,string Effort,string Speed
             ), ordered_turns AS (
                 SELECT *,lag(last_seen) OVER w AS prior_seen,lag(finished) OVER w AS prior_finish
                 FROM turns WINDOW w AS (ORDER BY first_seen,turn_id)
+            ), boundaries AS (
+                SELECT time_ms, json_extract(data,'$.Cumulative.Total') AS total
+                FROM Event WHERE device_id=(SELECT id FROM Device WHERE root=$root)
+                    AND thread_id IN (SELECT thread_id FROM active_threads) AND kind='snapshot'
+                    AND time_ms IN ($from,$to)
             ), ledger AS (
                 SELECT l.thread_id,l.turn_id,l.event_id,l.model,l.effort,l.speed,l.confidence,l.input,l.output,
                     l.cache_read,l.cache_write,l.reasoning FROM (SELECT DISTINCT thread_id FROM interval_events) t
@@ -99,7 +130,10 @@ internal sealed record CalibrationSample(string Model,string Effort,string Speed
                 CROSS JOIN Event e ON e.id=l.event_id WHERE e.time_ms>$from AND e.time_ms<=$to
             )
             SELECT l.model,l.effort,sample_speed(l.thread_id,l.turn_id,l.model,l.speed) AS tier,
-                sum(l.input),sum(l.output),sum(l.cache_read),sum(l.cache_write),sum(l.reasoning)
+                sum(l.input),sum(l.output),sum(l.cache_read),sum(l.cache_write),sum(l.reasoning),
+                (SELECT CASE WHEN count(*)=2 AND count(total)=2 AND count(DISTINCT time_ms)=2 THEN
+                    max(CASE WHEN time_ms=$to THEN total END)-max(CASE WHEN time_ms=$from THEN total END) END
+                    FROM boundaries)
             FROM ledger l
             WHERE (SELECT count(*) FROM active_threads)=1
                 AND EXISTS (SELECT 1 FROM active_threads a JOIN Session s ON s.thread_id=a.thread_id
@@ -126,7 +160,8 @@ internal sealed record CalibrationSample(string Model,string Effort,string Speed
         if(!CodexCreditRates.Rates.ContainsKey(model) ||
             effort is not ("none" or "minimal" or "low" or "medium" or "high" or "xhigh" or "max" or "ultra" or "unknown") ||
             speed is not ("standard" or "fast" or "ultrafast" or "unknown"))return null;
-        var sample=new CalibrationSample(model.ToLowerInvariant(),effort,speed,r.GetInt64(3),r.GetInt64(4),r.GetInt64(5),r.GetInt64(6),r.GetInt64(7)){Window=span};
+        var sample=new CalibrationSample(model.ToLowerInvariant(),effort,speed,r.GetInt64(3),r.GetInt64(4),
+            r.GetInt64(5),r.GetInt64(6),r.GetInt64(7),r.IsDBNull(8)?null:r.GetInt64(8),span);
         return !r.Read() && sample.Input+sample.Output>0?sample:null;
     }
 }

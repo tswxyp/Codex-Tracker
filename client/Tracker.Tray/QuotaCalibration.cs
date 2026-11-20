@@ -95,8 +95,8 @@ internal static class WeeklyCalibration
         return result;
     }
 
-    internal sealed record Interval(long Start,long End);
-    internal static List<Interval> Intervals(List<QuotaWindow> windows,QuotaWindow target)
+    internal sealed record Interval(long Start,long End,int Points=1);
+    internal static List<Interval> Intervals(List<QuotaWindow> windows,QuotaWindow target,int maximumStep=1)
     {
         var result=new List<Interval>();
         QuotaWindow? previous=null,high=null;
@@ -122,8 +122,10 @@ internal static class WeeklyCalibration
             }else{
                 firstLowerSeen=null;
                 if(w.Percent>high.Percent){
-                    bool observed=w.Percent-high.Percent==1 && w.Percent<100 && gap<=3*Minute && previous.Percent==high.Percent;
-                    if(observed && crossing is long start && w.Seen>start)result.Add(new(start,w.Seen));
+                    decimal step=w.Percent-high.Percent;
+                    bool observed=step>=1 && step<=maximumStep && step==decimal.Truncate(step) &&
+                        w.Percent<100 && gap<=3*Minute && previous.Percent==high.Percent;
+                    if(observed && crossing is long start && w.Seen>start)result.Add(new(start,w.Seen,(int)step));
                     crossing=observed?w.Seen:null;
                     high=w;
                 }
