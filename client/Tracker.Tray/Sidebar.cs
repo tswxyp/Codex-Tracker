@@ -93,14 +93,34 @@ internal sealed class Sidebar
             if(clip.Width<=0 || clip.Height<=0)return;
             if(Convert.ToBoolean(node.GetCachedPropertyValue(UIA_IsScrollPatternAvailablePropertyId)))scroll++;
             var children=node.GetCachedChildren();
-            if(type==UIA_ButtonControlTypeId && parent==UIA_GroupControlTypeId && grand==UIA_ListItemControlTypeId &&
-                great==UIA_ListControlTypeId && Convert.ToBoolean(node.GetCachedPropertyValue(UIA_IsInvokePatternAvailablePropertyId)))
+            bool inListItem=parent==UIA_GroupControlTypeId && grand==UIA_ListItemControlTypeId && great==UIA_ListControlTypeId;
+            bool legacyRow=type==UIA_ButtonControlTypeId && inListItem &&
+                Convert.ToBoolean(node.GetCachedPropertyValue(UIA_IsInvokePatternAvailablePropertyId));
+            int titleIndex=-1;
+            string? title=legacyRow?node.CachedName:null;
+            if(type==UIA_GroupControlTypeId && (inListItem || (parent==UIA_ListItemControlTypeId && grand==UIA_ListControlTypeId)) &&
+                HasClass(node,"sidebar-item") && children!=null)
+            {
+                // Codex 26.1117 exposes the row bounds and aria-current on a group.
+                // Its primary title button is distinct from the adjacent menu and pin controls.
+                for(int i=0;i<children.Length;i++){
+                    var child=children.GetElement(i);
+                    if(child.CachedControlType!=UIA_ButtonControlTypeId)continue;
+                    bool titleButton=HasClass(child,"before:sidebar-item") ||
+                        (child.CachedName==node.CachedName && (child.CachedAriaProperties??"").Split(';').Contains("hasinterestfor=true"));
+                    if(!titleButton)continue;
+                    if(titleIndex>=0)return;
+                    titleIndex=i;title=child.CachedName;
+                }
+                if(titleIndex<0 && (node.CachedClassName??"").Contains("app-action-sidebar-thread-selected",StringComparison.Ordinal))return;
+            }
+            if(legacyRow || titleIndex>=0)
             {
                 candidates++;
-                if(node.CachedIsOffscreen!=0 || b.Width<1 || b.Height<1 || string.IsNullOrWhiteSpace(node.CachedName))return;
+                if(node.CachedIsOffscreen!=0 || b.Width<1 || b.Height<1 || string.IsNullOrWhiteSpace(title))return;
                 var actions=new List<Rectangle>();
                 int? timeLeft=null;
-                void ActionBounds(IUIAutomationElementArray? array)
+                void ActionBounds(IUIAutomationElementArray? array,int primaryButton=-1)
                 {
                     if(array==null)return;
                     for(int j=0;j<array.Length;j++)
@@ -108,21 +128,21 @@ internal sealed class Sidebar
                         var child=array.GetElement(j);
                         var bounds=Box(child);
                         if(child.CachedIsOffscreen!=0)continue;
-                        if(child.CachedControlType==UIA_ButtonControlTypeId && bounds.IntersectsWith(b)){
+                        if(j!=primaryButton && child.CachedControlType==UIA_ButtonControlTypeId && bounds.IntersectsWith(b)){
                             actions.Add(bounds);
                             continue;
                         }
                         // Some Codex versions expose the timestamp as a separate text run.
                         if(child.CachedControlType==UIA_TextControlTypeId && bounds.Width>0 &&
                             bounds.Left>b.Left+b.Width/2 && b.Contains(bounds) &&
-                            child.CachedName!=node.CachedName && IsTimestamp(child.CachedName))
+                            child.CachedName!=title && IsTimestamp(child.CachedName))
                             timeLeft=Math.Min(timeLeft??bounds.Left,bounds.Left);
                         ActionBounds(child.GetCachedChildren());
                     }
                 }
-                ActionBounds(children);
+                ActionBounds(children,titleIndex);
                 bool current=(node.CachedAriaProperties??"").Split(';').Contains("current=page");
-                ordered.Add((node,new(node.CachedName,clip,actions.ToArray(),current,timeLeft)));
+                ordered.Add((node,new(title,clip,actions.ToArray(),current,timeLeft)));
                 return;
             }
             if(children==null)return;
@@ -172,6 +192,8 @@ internal sealed class Sidebar
         }
         return new(window,outer,dpi,rows,candidates,scroll,started);
     }
+    static bool HasClass(IUIAutomationElement element,string token)=>
+        (element.CachedClassName??"").Split(' ',StringSplitOptions.RemoveEmptyEntries).Contains(token,StringComparer.Ordinal);
     static bool IsTimestamp(string? text)=>text is {Length:>0 and <=24} &&
         System.Text.RegularExpressions.Regex.IsMatch(text.Trim(),
             @"^(?:刚刚|昨天|今天|now|today|yesterday|\d{1,2}:\d{2}|\d+\s*(?:[smhdwy]|秒|分钟|小时|天|周|个月|年)(?:前| ago)?)$",
