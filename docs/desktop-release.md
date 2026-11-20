@@ -10,6 +10,8 @@
 
 [下载最新 Windows 安装包](https://github.com/tswxyp/Codex-Tracker/releases/latest/download/CodexTracker-Setup-x64.exe) · [正式版本列表](https://github.com/tswxyp/Codex-Tracker/releases) · [发布工作流](../.github/workflows/desktop-release.yml)
 
+如果已有标签没有产生构建记录，在 GitHub Actions 中打开该工作流，点 **Run workflow** 并填写已有的正式标签。手动启动也会从该标签对应的代码构建。
+
 ## 用户何时收到更新
 
 安装版在启动约 15 秒后查询 GitHub 的公开正式版本，此后每 6 小时检查一次。查询或下载失败后约 30 分钟重试，也可以在托盘点 **检查更新**。找到新版后在后台下载并校验更新包，在托盘点 **立即更新** 即可重启 Tracker。也可以留到下次启动自动应用。正常提交、修改 README 或发布预览版不会触发客户端升级。此功能无需登录 GitHub。源码构建继续使用手动更新。
