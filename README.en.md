@@ -2,7 +2,7 @@
 
 [简体中文](README.md) · **English** · [日本語](README.ja.md) · [한국어](README.ko.md)
 
-**What did you earn on that client project after paying for Codex?** Codex Tracker is a Windows tray app for people who do client work in Codex. Hover over a chat in the Codex sidebar to see its token usage and its estimated share of your subscription fee. Record a payment on the card to see how much you earned on that chat and on the project as a whole.
+**What did you earn on that client project after paying for Codex?** Codex Tracker is a Windows tray app for people who do client work in Codex. Hover over a chat in the Codex sidebar to see its token usage and its estimated share of your subscription fee. Enter income for a chat or a project to see its profit or loss. I believe most of you come out ahead on most jobs. Click **Recent profit and loss** on the card to see how that chat did over the period you choose.
 
 **[Download for Windows x64](https://github.com/tswxyp/Codex-Tracker/releases/latest/download/CodexTracker-Setup-x64.exe)** · [Get started](#quick-start) · [How costs are estimated](#cost) · [Self-hosting](#self-hosting)
 
@@ -62,7 +62,9 @@ Reports count income on the **payment date** and costs on the **usage date**. Re
 
 **What affects the estimate?** The weekly meter covers the entire account. If a second device uses it at the same time, the meter includes both devices while the local token count covers one. That can skew calibration. Tracker flags a standard-speed assumption when the speed is missing and identifies usage it cannot price. Reports show **N/A** when there is too little evidence to calculate an amount.
 
-## Local data and privacy
+## How accurate is the cost estimate?
+
+All Codex usage costs shown here are estimates. You can help improve them by opting to share usage samples with our Cloudflare-hosted service while one task runs in a single chat on one device. The samples help us study how token consumption relates to changes in the weekly allowance and refine future estimates. Today, your PC estimates each chat’s cost locally. More samples can bring estimates closer to actual costs, but some uncertainty will remain.
 
 A background worker reads new entries in active and archived Codex logs. It checks per-response usage against cumulative snapshots, removes duplicates and saves the ledger and its reading position in local SQLite. After a restart it picks up where it left off. Windows UI Automation locates chat rows for the hover card. The integration leaves the Codex installation, configuration and original chats intact. Ambiguous matches, including duplicate titles, are flagged.
 
