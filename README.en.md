@@ -63,14 +63,14 @@ Reports count income on the **payment date** and costs on the **usage date**. Re
 ## How a chat gets its estimated cost
 
 1. **Work out a weekly budget.** Multiply the subscription payment by 7 and divide by the number of days in the billing period. With the default 30-day period, CNY 1,200 a month gives a weekly budget of CNY 280.
-2. **Estimate the chat’s share of the weekly allowance.** Tracker observes several intervals in which the account’s seven-day usage rises by one percentage point. It compares those changes with local usage over the same intervals to estimate the weighted tokens per point. It accounts for the model, uncached and cached input, output and known speed multipliers.
+2. **Estimate the chat’s share of the weekly allowance.** Tracker weights tokens by model, uncached input, cached input, output and speed tier. Dividing the chat’s weighted usage by **335.669685** gives its estimated share in percentage points.
 3. **Multiply the weekly budget by that share.** If the delivery chat’s weighted tokens represent an estimated 5% of the weekly allowance, its cost is **CNY 280 × 5% ≈ CNY 14**. This is an allocation of your subscription payment.
 
-**What affects the estimate?** The weekly meter covers the entire account. If a second device uses it at the same time, the meter includes both devices while the local token count covers one. That can skew calibration. Tracker flags a standard-speed assumption when the speed is missing and identifies usage it cannot price. Reports show **N/A** when there is too little evidence to calculate an amount.
+**Where does the estimate apply?** The fixed rate comes from past observations on a $200 Pro subscription. Its accuracy on other plans is unverified. On the same app version, activity on another device and sample uploads have no effect on the rate. Tracker flags a standard-speed assumption if the speed is missing. The card identifies usage it cannot price, and reports show **N/A** for an unavailable amount.
 
 ## How accurate is the cost estimate?
 
-All Codex usage costs shown here are estimates. You can help improve them by opting to share usage samples with our Cloudflare-hosted service while one task runs in a single chat on one device. The samples help us study how token consumption relates to changes in the weekly allowance and refine future estimates. Today, your PC estimates each chat’s cost locally. More samples can bring estimates closer to actual costs, but some uncertainty will remain.
+All Codex usage costs shown here are estimates. You can contribute usage samples to our Cloudflare-hosted service while one task runs in a single chat on one device. Maintainers can review accepted samples and use them to decide whether to change the fixed rate in a future release. Individual chat costs remain estimates.
 
 A background worker reads new entries in active and archived Codex logs. It checks per-response usage against cumulative snapshots, removes duplicates and saves the ledger and its reading position in local SQLite. After a restart it picks up where it left off. Windows UI Automation locates chat rows for the hover card. The integration leaves the Codex installation, configuration and original chats intact. Ambiguous matches, including duplicate titles, are flagged.
 

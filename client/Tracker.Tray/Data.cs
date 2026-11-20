@@ -10,7 +10,7 @@ internal sealed class Stats
 {
     internal List<Usage> Usage {get;}=[];
     internal WeeklyEstimate? Value;
-    internal bool HasPlan,HasCalibration;
+    internal bool HasPlan;
     internal ProjectFigures Project=new();
     internal MoneyAmount[]? ChatIncome;
     IEnumerable<Usage> Known=>Usage.Where(u=>u.Confidence is "OBSERVED" or "DERIVED");
@@ -63,7 +63,6 @@ internal sealed class Stats
         string speedNote=options.SpeedEstimateNote;
         string value=Usage.Count==0?T("暂无用量记录","No usage recorded yet"):
             !HasPlan?T("请在托盘设置订阅费用","Set the fee in the tray"):
-            !HasCalibration?T("暂无法估价\n还算不出每 1% 周额度对应的用量","Estimate pending\nToo little data to estimate the usage per 1% of weekly quota"):
             T("这条聊天的用量记录不全","Chat usage details incomplete");
         if(Value is {} estimate){
             string percent=estimate.Percent is >0m and <0.1m?"<0.1":estimate.Percent.ToString("0.#",CultureInfo.InvariantCulture);

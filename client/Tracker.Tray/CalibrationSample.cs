@@ -6,7 +6,7 @@ namespace CodexTracker.Tray;
 // The interval stays in memory for a final local check. It is never included in the wire payload.
 internal sealed record CalibrationSample(string Model,string Effort,string Speed,long Input,long Output,
     long CacheRead,long CacheWrite,long Reasoning,long? SnapshotTokens,int ActiveSessions,bool TaskOverlap,
-    bool UnattributedUsage,WeeklyCalibration.Interval Window)
+    bool UnattributedUsage,QuotaIntervals.Interval Window)
 {
     internal const int PerSize=2, MaxPoints=3;
     internal static List<CalibrationSample> Read(string path,string root,long consent,long cursor,int[] slots,
@@ -39,7 +39,7 @@ internal sealed record CalibrationSample(string Model,string Effort,string Speed
     }
 
     // Adjoining rises can form one larger observation. Never bridge a broken meter series.
-    static IEnumerable<WeeklyCalibration.Interval> Candidates(List<WeeklyCalibration.Interval> spans)
+    static IEnumerable<QuotaIntervals.Interval> Candidates(List<QuotaIntervals.Interval> spans)
     {
         for(int i=0;i<spans.Count;i++){
             var span=spans[i];
@@ -53,7 +53,7 @@ internal sealed record CalibrationSample(string Model,string Effort,string Speed
         }
     }
 
-    static List<WeeklyCalibration.Interval> ReadSpans(SqliteCommand q,CancellationToken stop)
+    static List<QuotaIntervals.Interval> ReadSpans(SqliteCommand q,CancellationToken stop)
     {
         // Project the shared weekly meter inside SQLite; the sampler never reads raw log bodies.
         q.CommandText="""
@@ -82,7 +82,7 @@ internal sealed record CalibrationSample(string Model,string Effort,string Speed
             long reset=seconds*1000;
             if(seen>=reset-QuotaWindow.Week && seen<reset)windows.Add(new(seen,reset,percent,r.IsDBNull(3)?null:r.GetString(3)));
         }
-        return windows.Count==0?[]:WeeklyCalibration.Intervals(windows,windows[^1],MaxPoints);
+        return windows.Count==0?[]:QuotaIntervals.Intervals(windows,windows[^1],MaxPoints);
     }
 
     internal bool StillMatches(string path,string root,long consent,TurnSpeeds speeds,CancellationToken stop)
@@ -161,7 +161,7 @@ internal sealed record CalibrationSample(string Model,string Effort,string Speed
             """;
     }
 
-    static CalibrationSample? ReadInterval(SqliteCommand q,WeeklyCalibration.Interval span)
+    static CalibrationSample? ReadInterval(SqliteCommand q,QuotaIntervals.Interval span)
     {
         q.Parameters["$from"].Value=span.Start;q.Parameters["$to"].Value=span.End;
         using var r=q.ExecuteReader();

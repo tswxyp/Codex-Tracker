@@ -18,7 +18,6 @@ internal sealed class ProfitReportForm:Form
     readonly ProfitChart chart;
     readonly System.Windows.Forms.Timer update=new(){Interval=1500};
     readonly SemaphoreSlim reader=new(1);
-    readonly QuotaCalibrationCache calibration=new();
     readonly string? threadId;
     ProfitReportData? snapshot;
     DisplayMoney? money;
@@ -142,7 +141,7 @@ internal sealed class ProfitReportForm:Form
             await reader.WaitAsync(token);
             ProfitReportData result;
             try{
-                result=await Task.Run(()=>ProfitReportData.Read(db,root,settings,first,last,calibration,token,threadId),token);
+                result=await Task.Run(()=>ProfitReportData.Read(db,root,settings,first,last,token,threadId),token);
             }finally{reader.Release();}
             if(token.IsCancellationRequested || IsDisposed)return;
             snapshot=result;loadedRange=(first,last);Render();

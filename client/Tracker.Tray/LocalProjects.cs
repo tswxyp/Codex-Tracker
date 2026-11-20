@@ -69,11 +69,9 @@ internal static class SidebarData
         var usage=Data.Read(database,root,ids.Length>500?null:ids,speeds);
         SubscriptionPlan? plan=null;
         try{plan=settings.ReadPlan();}catch(Microsoft.Data.Sqlite.SqliteException){ }
-        var calibration=plan!=null && usage.Count>0?settings.Calibration.Read(database,root,speeds):null;
         foreach(var stats in usage.Values){
             stats.HasPlan=plan!=null;
-            stats.HasCalibration=calibration!=null;
-            stats.Value=plan!=null?calibration?.Estimate(stats.Usage,plan):null;
+            stats.Value=plan!=null?SubscriptionCost.Estimate(stats.Usage,plan):null;
         }
         var figures=new Dictionary<string,ProjectFigures>(StringComparer.Ordinal);
         foreach(var project in wanted){
@@ -95,7 +93,7 @@ internal static class SidebarData
         }
         var rows=new Dictionary<string,Stats>(StringComparer.Ordinal);
         foreach(var thread in visible){
-            if(!usage.TryGetValue(thread,out var stats))stats=new(){HasPlan=plan!=null,HasCalibration=calibration!=null};
+            if(!usage.TryGetValue(thread,out var stats))stats=new(){HasPlan=plan!=null};
             stats.ChatIncome=chatIncome.GetValueOrDefault(thread);
             if(unavailable)stats.Project=new(Unavailable:true);
             if(projects.ByThread.TryGetValue(thread,out var project))stats.Project=figures.GetValueOrDefault(project)??new(project);

@@ -6,7 +6,7 @@ namespace CodexTracker.Tray;
 
 internal readonly record struct SpeedKey(string Thread,string Turn,string Model);
 
-// A reader holds one immutable view for both the quota calibration and the chat/report.
+// Each chat or report calculation reads one immutable view of turn speeds.
 internal sealed class TurnSpeeds(Dictionary<SpeedKey,string> tiers)
 {
     internal static readonly TurnSpeeds Empty=new([]);

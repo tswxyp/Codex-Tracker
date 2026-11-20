@@ -4,7 +4,7 @@ namespace CodexTracker.Tray;
 
 internal static class CreditWeights
 {
-    // Use the same units for a chat and the historical intervals that price it.
+    // Convert token categories and the speed tier to weighted subscription usage units.
     internal static decimal? Credits(Usage usage,out bool assumedStandard)
     {
         assumedStandard=false;

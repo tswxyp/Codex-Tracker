@@ -69,7 +69,6 @@ internal static class TrayText
         ["No usage recorded yet"]=("使用量の記録待ち","아직 기록된 사용량 없음"),
         [" (confirmed)"]=("（確認済み）"," (확인됨)"),
         ["Set the fee in the tray"]=("トレイで料金を設定","트레이에서 구독료 설정"),
-        ["Estimate pending\nToo little data to estimate the usage per 1% of weekly quota"]=("算定待ち\n週の利用枠の 1% に相当する使用量をまだ推定できません","금액 산정 대기\n주간 한도 1%에 해당하는 사용량을 추정할 기록이 부족합니다"),
         ["Chat usage details incomplete"]=("使用量の詳細が不足しています","사용량 세부 정보 부족"),
         ["Known portion · {0:N0} tokens unpriced"]=("判明分のみ・{0:N0} トークンは未算定","확인된 부분만 · 토큰 {0:N0}개 미산정"),
         ["{0}% of one week's allowance"]=("週の利用枠の {0}% 相当","주간 한도의 {0}%"),

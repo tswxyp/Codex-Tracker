@@ -35,7 +35,7 @@ internal sealed record ProfitReportData(List<IncomeReceipt> Receipts,List<DailyC
     }
 
     internal static ProfitReportData Read(string database,string root,SidebarSettings settings,DateOnly from,DateOnly until,
-        QuotaCalibrationCache calibration,CancellationToken cancel,string? threadId)
+        CancellationToken cancel,string? threadId)
     {
         var receipts=settings.ReadReceipts(threadId==null?null:("chat",threadId));
         if(threadId==null){
@@ -49,7 +49,6 @@ internal sealed record ProfitReportData(List<IncomeReceipt> Receipts,List<DailyC
         if(!File.Exists(database))return new(receipts,costs);
         var plan=settings.ReadPlan();
         var speeds=settings.Speeds.Snapshot();
-        var rate=plan!=null?calibration.Read(database,root,speeds):null;
         cancel.ThrowIfCancellationRequested();
         using var db=Data.Open(database,SqliteOpenMode.ReadOnly);
         // WinSQLite can return NULL for the 'localtime' modifier. Use the same
@@ -86,7 +85,7 @@ internal sealed record ProfitReportData(List<IncomeReceipt> Receipts,List<DailyC
             string? speed=speeds.Resolve(reader.GetString(8),reader.IsDBNull(9)?null:reader.GetString(9),model,reader.IsDBNull(3)?null:reader.GetString(3));
             var usage=new Usage(model,reader.GetString(2),reader.GetInt64(4),reader.GetInt64(5),
                 reader.GetInt64(6),reader.IsDBNull(7)?null:reader.GetInt64(7),null,speed);
-            var estimate=plan==null?null:rate?.Estimate([usage],plan);
+            var estimate=plan==null?null:SubscriptionCost.Estimate([usage],plan);
             costs.Add(new(DateOnly.FromDayNumber(reader.GetInt32(0)),
                 estimate is {UnpricedTokens:0}?estimate.Cost:null,estimate is {UnpricedTokens:0,AssumedStandard:true}));
         }

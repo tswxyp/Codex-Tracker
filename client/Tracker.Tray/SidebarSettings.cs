@@ -14,7 +14,6 @@ internal sealed record IncomeReceipt(string Id,string Scope,string Entry,Project
 internal sealed class SidebarSettings(string directory,string root)
 {
     readonly string path=Path.Combine(directory,"sidebar.sqlite");
-    internal QuotaCalibrationCache Calibration {get;}=new();
     internal TurnSpeedHistory Speeds {get;}=new(directory,root);
     SqliteConnection OpenWrite()
     {
