@@ -36,8 +36,34 @@ jobs:
           dotnet-version: '10.0.x'
       - name: Build installer and update feed
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          ./scripts/build-installer.ps1 -Version $env:RELEASE_TAG.Substring(1) -OutputDirectory "$env:RUNNER_TEMP/release"
+          $ErrorActionPreference = 'Stop'
+          $version = $env:RELEASE_TAG.Substring(1)
+          $latest = Invoke-RestMethod "$env:GITHUB_API_URL/repos/$env:GITHUB_REPOSITORY/releases/latest" -Headers @{
+            Authorization = "Bearer $env:GH_TOKEN"
+          } -SkipHttpErrorCheck -StatusCodeVariable status
+          $options = @{}
+          if ($status -eq 200) {
+            if ($latest.tag_name -cnotmatch '^v(\d+\.\d+\.\d+)$' -or [version]$Matches[1] -ge [version]$version) {
+              throw 'Expected a stable version newer than the current public release'
+            }
+            $name = "CodexTrackerDesktop-$($latest.tag_name.Substring(1))-win-x64-full.nupkg"
+            $asset = @($latest.assets | Where-Object name -CEQ $name)
+            if ($asset.Count -ne 1 -or $asset[0].digest -notmatch '^sha256:[a-fA-F0-9]{64}$') {
+              throw "Missing base package or SHA-256 digest on $($latest.tag_name)"
+            }
+            gh release download $latest.tag_name --pattern $name --dir "$env:RUNNER_TEMP/base"
+            if ($LASTEXITCODE) { throw 'Could not download the previous full package' }
+            $options.PreviousPackage = Join-Path "$env:RUNNER_TEMP/base" $name
+            if ("sha256:$((Get-FileHash -LiteralPath $options.PreviousPackage).Hash)" -ne $asset[0].digest) {
+              throw 'Base package checksum mismatch'
+            }
+          } elseif ($status -ne 404) {
+            throw "Could not read the latest stable release (HTTP $status)"
+          }
+          ./scripts/build-installer.ps1 -Version $version -OutputDirectory "$env:RUNNER_TEMP/release" @options
       - name: Publish the complete stable release
         shell: pwsh
         env:
@@ -46,7 +72,8 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $tag = $env:RELEASE_TAG
           $files = @(Get-ChildItem "$env:RUNNER_TEMP/release" -File | ForEach-Object FullName)
-          if ($files.Count -ne 4) { throw 'Incomplete release' }
+          $feed = Get-Content "$env:RUNNER_TEMP/release/releases.win-x64.json" -Raw | ConvertFrom-Json
+          if ($files.Count -ne ($feed.Assets.Count + 3)) { throw 'Incomplete release' }
           $releases = gh release list --limit 100 --json tagName,isDraft,isLatest | ConvertFrom-Json
           if ($LASTEXITCODE) { throw 'Cannot read release status' }
           $existing = $releases | Where-Object tagName -eq $tag
@@ -54,7 +81,7 @@ jobs:
           $latest = $releases | Where-Object isLatest
           if ($latest -and [version]$tag.Substring(1) -le [version]$latest.tagName.Substring(1)) { throw 'A newer stable release already exists' }
           if (!$existing) {
-            $notes = "Download **CodexTracker-Setup-x64.exe** for Windows 11 x64. Run it once to install the tray app and receive future stable updates. 中文用户请下载安装包，旧版用户请先从托盘退出 Tracker。"
+            $notes = "On Windows 11 x64, use **Check for updates** in the Tracker tray menu. The updater prefers a smaller patch when available. For a first install, download **CodexTracker-Setup-x64.exe**. 已安装的用户在托盘点 **检查更新** 即可。首次安装请下载 EXE。"
             gh release create $tag --verify-tag --draft --title "Codex Tracker $tag" --notes $notes
             if ($LASTEXITCODE) { throw 'Could not create the release draft' }
           }

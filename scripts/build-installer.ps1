@@ -1,7 +1,8 @@
 param(
     [Parameter(Mandatory)][ValidatePattern('^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$')][string]$Version,
     [string]$Dotnet = 'dotnet',
-    [string]$OutputDirectory
+    [string]$OutputDirectory,
+    [string]$PreviousPackage
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
@@ -17,6 +18,16 @@ if ((Test-Path -LiteralPath $output) -and (Get-ChildItem -LiteralPath $output -F
 $stage = Join-Path $repo ('artifacts/installer-build/' + [guid]::NewGuid())
 $app = Join-Path $stage 'app'
 $packages = Join-Path $stage 'packages'
+
+if ($PreviousPackage) {
+    $base = Get-Item -LiteralPath $PreviousPackage
+    if ($base.Name -cnotmatch '^CodexTrackerDesktop-(\d+\.\d+\.\d+)-win-x64-full\.nupkg$' -or
+        [version]$Matches[1] -ge [version]$Version) {
+        throw 'Expected a full Windows x64 package from an earlier Codex Tracker release'
+    }
+    New-Item -ItemType Directory -Path $packages -Force | Out-Null
+    Copy-Item -LiteralPath $base.FullName -Destination $packages
+}
 
 function Invoke-Dotnet([string[]]$Arguments) {
     & $tool @Arguments
@@ -54,18 +65,31 @@ try {
     Invoke-Dotnet @('tool','run','vpk','--','pack','--packId','CodexTrackerDesktop','--packTitle','Codex Tracker',
         '--packAuthors','Codex Tracker contributors','--packVersion',$Version,'--packDir',$app,'--mainExe','CodexTracker.Tray.exe',
         '--icon','client/Tracker.Tray/Tracker.ico','--runtime','win-x64','--channel','win-x64','--shortcuts','StartMenuRoot',
-        '--noPortable','--delta','None','--outputDir',$packages)
+        '--noPortable','--delta','BestSpeed','--outputDir',$packages)
 
     $feed = Get-Item -LiteralPath (Join-Path $packages 'releases.win-x64.json')
-    $entries = @((Get-Content $feed.FullName -Raw | ConvertFrom-Json).Assets)
-    if ($entries.Count -ne 1 -or $entries[0].Type -ne 'Full' -or $entries[0].Version -ne $Version) { throw 'Unexpected update feed' }
-    $package = Get-Item -LiteralPath (Join-Path $packages $entries[0].FileName)
-    if ($package.Length -ne $entries[0].Size -or (Get-FileHash $package.FullName).Hash -ne $entries[0].SHA256) { throw 'Update feed hash mismatch' }
+    $index = Get-Content $feed.FullName -Raw | ConvertFrom-Json
+    # GithubSource resolves each feed entry against the attachments on that particular release.
+    $index.Assets = @($index.Assets | Where-Object Version -CEQ $Version)
+    $expectedTypes = @('Full')
+    if ($PreviousPackage) { $expectedTypes += 'Delta' }
+    if ($index.Assets.Count -ne $expectedTypes.Count) { throw 'Unexpected update feed' }
+    $releasePackages = foreach ($type in $expectedTypes) {
+        $name = "CodexTrackerDesktop-$Version-win-x64-" + $type.ToLowerInvariant() + '.nupkg'
+        $entries = @($index.Assets | Where-Object { $_.Type -ceq $type -and $_.FileName -ceq $name })
+        if ($entries.Count -ne 1) { throw "Missing update feed entry for $name" }
+        $package = Get-Item -LiteralPath (Join-Path $packages $name)
+        if ($package.Length -ne $entries[0].Size -or (Get-FileHash $package.FullName).Hash -ne $entries[0].SHA256) {
+            throw "Update feed checksum mismatch for $name"
+        }
+        $package.FullName
+    }
     $setup = @(Get-ChildItem -LiteralPath $packages -Filter '*-Setup.exe' -File)
     if ($setup.Count -ne 1) { throw 'Expected one Windows installer' }
     New-Item -ItemType Directory -Force -Path $output | Out-Null
     Copy-Item -LiteralPath $setup[0].FullName -Destination (Join-Path $output 'CodexTracker-Setup-x64.exe')
-    Copy-Item -LiteralPath $package.FullName,$feed.FullName -Destination $output
+    Copy-Item -LiteralPath $releasePackages -Destination $output
+    $index | ConvertTo-Json -Depth 10 -Compress | Set-Content -LiteralPath (Join-Path $output $feed.Name) -Encoding utf8
     $hashes = Get-ChildItem $output -File | Sort-Object Name | ForEach-Object {
         (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() + '  ' + $_.Name
     }
