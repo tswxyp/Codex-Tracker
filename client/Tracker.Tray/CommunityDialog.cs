@@ -73,14 +73,14 @@ internal sealed class CommunityDialog:Form
             Add(uploadStatus);Add(receipt);
         }
         if(consent){
-            Line(options.Format("同意后，周额度每增加 1、2 或 3 个百分点，符合条件的样本会自动上传至 {0}。每档最多两份，共六份，各取自不同时间段。",
-                "After you agree, qualifying rises of 1, 2 or 3 weekly quota points are sent automatically to {0}. Up to two samples per size, six in total, from separate intervals.",SampleSubmission.Host));
-            Line(T("发送额度增量、模型、推理强度、速度、Token 计数（含同期累计计数的增量）及随机回执号。Cloudflare 处理连接时可见 IP，样本库不保存 IP。",
-                "Uploads contain the quota change, model, effort, speed, token counts including the counter change, and a random receipt. Cloudflare sees the connection IP. The sample database does not store it."));
-            Line(T("还会发送本机运行任务的会话数、是否发现任务重叠，以及是否有用量无法归属。原始日志、聊天内容和会话 ID 都留在本机。",
-                "We also send the local active chat count, whether tasks overlapped, and whether any usage could not be attributed. Logs, chat content and chat IDs stay on this device."));
-            Line(T("取消勾选、暂停监控、锁屏或退出即停止上传并清空本机样本。下次登录需重新同意。",
-                "Unchecking, pausing, locking or quitting stops uploads and clears local samples. Opt in again after sign-in."));
+            Line(T("同意后，周额度每使用1%、2%、3%时，符合条件的样本（单设备单任务）会自动上传至Cloudflare云托管，每档自动上传2份样本，各取不同时段的样本进行记录。",
+                "After you agree, qualifying samples from one task on one device are uploaded automatically to Cloudflare for intervals that use 1%, 2% or 3% of your weekly quota. Each group uses two samples from separate intervals."));
+            Line(T("可能会采集您的会话ID和对应会话所使用的token，绝不会采集会话名称以及会话内容。",
+                "Sampling may read your chat ID and the number of tokens used by that chat on this device. Chat titles and content are never collected."));
+            Line(T("取消勾选、暂停监控、锁屏或退出立即停止上传并清空本机样本（不会影响会话内容和任务记录等），下次登录需要重新同意。",
+                "Unchecking this option, pausing monitoring, locking your screen or quitting immediately stops uploads and clears samples on this device. Your chats and task history are preserved. You’ll need to opt in again the next time you sign in."));
+            Line(T("您可以选择多次采集并上传样本，感谢您的贡献！:D",
+                "You can opt in again to collect and upload more samples. Thanks for contributing! :D"));
         }
         var actions=new FlowLayoutPanel{AutoSize=true,FlowDirection=FlowDirection.RightToLeft,Dock=DockStyle.Fill,Margin=new Padding(0,8,0,0)};
         Button Button(string title,DialogResult result){
