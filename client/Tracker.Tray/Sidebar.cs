@@ -73,7 +73,7 @@ internal sealed class Sidebar
                 }
             }
         }
-        var ordered=new List<(IUIAutomationElement Element,ChatRow Row)>();
+        var ordered=new List<(IUIAutomationElement Element,ChatRow Row,Point Probe)>();
         scroll=scrollAbove;
         try
         {
@@ -142,7 +142,13 @@ internal sealed class Sidebar
                 }
                 ActionBounds(children,titleIndex);
                 bool current=(node.CachedAriaProperties??"").Split(';').Contains("current=page");
-                ordered.Add((node,new(title,clip,actions.ToArray(),current,timeLeft)));
+                var probe=new Point(clip.Left+Math.Min(clip.Width/2,OverlayLayout.Px(18,dpi)),clip.Top+clip.Height/2);
+                if(titleIndex>=0){
+                    // The indentation of a project chat can hit the document instead of the row.
+                    var label=Rectangle.Intersect(clip,Box(children!.GetElement(titleIndex)));
+                    if(label.Width>0 && label.Height>0)probe=new(label.Left+label.Width/2,label.Top+label.Height/2);
+                }
+                ordered.Add((node,new(title,clip,actions.ToArray(),current,timeLeft),probe));
                 return;
             }
             if(children==null)return;
@@ -155,10 +161,10 @@ internal sealed class Sidebar
         var keys=ordered.Select(item=>(item.Row.Name,item.Row.Bounds,item.Row.Current)).ToArray();
         if(!lastLayout.SequenceEqual(keys))verified.Clear();
         lastLayout=keys;
-        foreach(var (element,row) in ordered)
+        foreach(var (element,row,primaryPoint) in ordered)
         {
             var b=row.Bounds;
-            var p=new Point(b.Left+Math.Min(b.Width/2,OverlayLayout.Px(18,dpi)),b.Top+b.Height/2);
+            var p=primaryPoint;
             var key=(row.Name,b,row.Current);
             if(!probePoints){rows.Add(row);continue;}
             bool onRow=b.Contains(mouse);
