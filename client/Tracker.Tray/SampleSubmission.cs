@@ -64,7 +64,8 @@ internal sealed class SampleSubmission(CalibrationSample sample)
             var body=new{receipt=Receipt,model=sample.Model,effort=sample.Effort,speed=sample.Speed,
                 input=sample.Input,output=sample.Output,cacheRead=sample.CacheRead,
                 cacheWrite=sample.CacheWrite,reasoning=sample.Reasoning,
-                points=sample.Window.Points,snapshotTokens=sample.SnapshotTokens};
+                points=sample.Window.Points,snapshotTokens=sample.SnapshotTokens,
+                activeSessions=sample.ActiveSessions,taskOverlap=sample.TaskOverlap,unattributedUsage=sample.UnattributedUsage};
             var url=report?new Uri(Endpoint.AbsoluteUri+(invalidated?"/invalidate":"/exclude-multitask")):Endpoint;
             using var response=await Client.PostAsJsonAsync(url,body,token);
             if(response.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created){

@@ -10,12 +10,17 @@ const speeds = new Set(["standard", "fast", "ultrafast", "unknown"]);
 const counts = ["input", "output", "cacheRead", "cacheWrite", "reasoning"];
 const fields = ["receipt", "model", "effort", "speed", ...counts];
 const automaticFields = [...fields, "points", "snapshotTokens"];
+const activityFields = ["activeSessions", "taskOverlap", "unattributedUsage"];
+const screenedFields = [...automaticFields, ...activityFields];
 const uuidV4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 function valid(s, automatic) {
-  const allowed = automatic ? automaticFields : fields;
-  return s !== null && typeof s === "object" && !Array.isArray(s) &&
-    Object.keys(s).length === allowed.length && allowed.every(key => Object.hasOwn(s, key)) &&
+  if (s === null || typeof s !== "object" || Array.isArray(s)) return false;
+  const hasActivity = automatic && activityFields.some(key => Object.hasOwn(s, key));
+  const allowed = hasActivity ? screenedFields : automatic ? automaticFields : fields;
+  return Object.keys(s).length === allowed.length && allowed.every(key => Object.hasOwn(s, key)) &&
+    (!hasActivity || (Number.isSafeInteger(s.activeSessions) && s.activeSessions >= 0 &&
+      typeof s.taskOverlap === "boolean" && typeof s.unattributedUsage === "boolean")) &&
     (!automatic || (Number.isInteger(s.points) && s.points >= 1 && s.points <= 3 &&
       (s.snapshotTokens === null || Number.isSafeInteger(s.snapshotTokens)))) &&
     typeof s.receipt === "string" && s.receipt.length === 36 && uuidV4.test(s.receipt) &&
@@ -23,6 +28,15 @@ function valid(s, automatic) {
     counts.every(key => Number.isSafeInteger(s[key]) && s[key] >= 0) &&
     Number.isSafeInteger(s.input + s.output) && s.input + s.output > 0 &&
     s.cacheRead <= s.input && s.reasoning <= s.output;
+}
+
+function automaticReview(sample) {
+  if (sample.activeSessions > 1 || sample.taskOverlap === true) return "excluded_multitask";
+  if (sample.activeSessions !== 1 || sample.taskOverlap !== false || sample.unattributedUsage !== false)
+    return "excluded_uncertain";
+  const countersAgree = sample.snapshotTokens === sample.input + sample.output;
+  return countersAgree && sample.cacheWrite <= sample.input && sample.effort !== "unknown" && sample.speed !== "unknown"
+    ? "approved" : "excluded_uncertain";
 }
 
 function reply(body, status) {
@@ -61,12 +75,19 @@ async function receive(request, db, exclusion, automatic) {
 
   const values = fields.map(key => sample[key]);
   values.push(automatic ? 2 : 1, automatic ? sample.points : 1, automatic ? sample.snapshotTokens : null);
+  if (Object.hasOwn(sample, "activeSessions")) {
+    values.push(sample.activeSessions, Number(sample.taskOverlap), Number(sample.unattributedUsage));
+  } else {
+    values.push(null, null, null);
+  }
   try {
     const matchFields = `receipt=? AND model=? AND effort=? AND speed=? AND input=? AND output=?
-      AND cache_read=? AND cache_write=? AND reasoning=? AND protocol=? AND quota_points=? AND snapshot_tokens IS ?`;
+      AND cache_read=? AND cache_write=? AND reasoning=? AND protocol=? AND quota_points=? AND snapshot_tokens IS ?
+      AND active_sessions IS ? AND task_overlap IS ? AND unattributed_usage IS ?`;
     const insert = db.prepare(`INSERT INTO calibration_samples_v1
-      (receipt,model,effort,speed,input,output,cache_read,cache_write,reasoning,protocol,quota_points,snapshot_tokens,review_status)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(receipt) DO NOTHING`);
+      (receipt,model,effort,speed,input,output,cache_read,cache_write,reasoning,protocol,quota_points,snapshot_tokens,
+       active_sessions,task_overlap,unattributed_usage,review_status)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(receipt) DO NOTHING`);
     if (exclusion) {
       // Match the original sample as well as its random receipt. A report can only exclude.
       const update = db.prepare(`UPDATE calibration_samples_v1
@@ -79,13 +100,10 @@ async function receive(request, db, exclusion, automatic) {
       return row ? reply({ status: "stored", receipt: row.receipt, review: row.review_status }, 200)
         : reply({ error: "sample_not_found" }, 404);
     }
-    let review = "pending";
-    if (automatic) {
-      const countersAgree = sample.snapshotTokens === sample.input + sample.output;
-      review = countersAgree && sample.cacheWrite <= sample.input && sample.effort !== "unknown" && sample.speed !== "unknown"
-        ? "approved" : "excluded_uncertain";
-    }
-    const match = db.prepare(`SELECT receipt, review_status FROM calibration_samples_v1 WHERE ${matchFields}`).bind(...values);
+    const review = automatic ? automaticReview(sample) : "pending";
+    const match = db.prepare(`SELECT receipt, CASE WHEN active_sessions IS NULL AND review_status='approved'
+      THEN 'excluded_uncertain' ELSE review_status END AS review_status FROM calibration_samples_v1
+      WHERE ${matchFields}`).bind(...values);
     const [write, read] = await db.batch([insert.bind(...values, review), match]);
     if (!write.success || !read.success) return reply({ error: "storage_unavailable" }, 503);
     if (read.results.length !== 1) return reply({ error: "receipt_conflict" }, 409);

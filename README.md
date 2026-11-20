@@ -19,9 +19,9 @@ Windows 本地 Codex 用量统计工具，采用 MIT 许可。**Phase 1** 包含
 
 每次同意后，周额度增加 1、2、3 个百分点的区间各取最多两份。六份样本来自不同的区间。举例来说，前两段各增加 1 个百分点的样本上传后，连续两次增加 1 个百分点可以合为一份新的 2 点样本。程序只使用授权后观测到边界的区间，预留两分钟等待账本写入。检测到跨会话、子代理、任务重叠、归属不清或混合模型档位时跳过。发送前再次核对额度区间和账本，断网按同一回执号退避重试。打开「查看采样进度」可以看到每档的回执数及各份样本的筛查结果。若后来发现混用了其他设备，仍可在本次进度窗口选中对应样本，点「标记为多任务并排除」。
 
-每份样本只发送额度增量、模型、推理强度、速度、输入和输出 Token、缓存读写、其中推理 Token、同一会话累计 Token 计数的区间增量（缺失时为空）及随机回执号。账号、设备或会话标识、绝对额度读数、时间戳、标题、正文、路径和金额均不进入载荷。Worker 应用日志和跟踪关闭。Cloudflare 处理 HTTPS 连接时可见来源 IP，样本库不保存 IP。[采样源码](client/Tracker.Tray/CalibrationSample.cs) · [客户端上传源码](client/Tracker.Tray/SampleSubmission.cs)
+每份样本包含额度增量、模型、推理强度、速度、输入和输出 Token、缓存读写、其中推理 Token、同一会话累计 Token 计数的区间增量（缺失时为空）及随机回执号。1.3.1 起另附三个本机统计结果，即运行任务的会话数（`activeSessions`）、是否检测到任务重叠（`taskOverlap`）、是否有用量无法归属（`unattributedUsage`）。在「查看采样进度」可看到本次发送的结果。会话列表、账号、设备或会话标识、绝对额度读数、时间戳、标题、正文、路径和金额均不进入载荷。Worker 应用日志和跟踪关闭。Cloudflare 处理 HTTPS 连接时可见来源 IP，样本库不保存 IP。[采样源码](client/Tracker.Tray/CalibrationSample.cs) · [客户端上传源码](client/Tracker.Tray/SampleSubmission.cs)
 
-接收端对新版 `/v2/samples` 的新回执自动筛查一次。先核对字段与 Token 计数范围，再比较会话累计计数增量和账本的输入加输出。两者相等且模型档位完整的样本标记为 `approved`，证据不足的标记为 `excluded_uncertain`。只有通过的新版样本进入 `calibration_eligible_v2`，分析每个百分点时使用 `quota_points` 作分母。重传保留原审核结果，用户事后报告多任务会将样本移出分析。旧版手动上传接口和原有审核结果保留，旧样本没有提供累计计数增量。匿名计数无法识别未记录的其他设备活动。云端结果不会自动改变托盘的个人成本估算。[托管状态](https://codex-tracker-calibration.tswxyp.workers.dev/health) · [Worker 源码](deploy/calibration-host/worker.js)
+接收端对 `/v2/samples` 的新回执自动筛查。多个会话参与或检测到任务重叠时标记为 `excluded_multitask`。会话数为零、用量归属不明或旧客户端未提供这三项时，标记为 `excluded_uncertain`。只有单会话、未检测到重叠、用量可归属的样本才继续核对 Token 与档位。账本的输入加输出与会话累计计数增量一致、计数有效且档位完整时标记为 `approved`。使用 `calibration_eligible_v2` 分析合格样本，按 `quota_points` 换算每个百分点的用量。旧回执和历史审核记录保留，缺少三项证据的历史样本不再计入校准。用户事后报告多任务也会将样本移出分析。云端只能筛查本机报告的观测，无法识别其他设备同时使用账号的情况。云端结果不会自动改变托盘的个人成本估算。[托管状态](https://codex-tracker-calibration.tswxyp.workers.dev/health) · [Worker 源码](deploy/calibration-host/worker.js)
 
 ## 项目盈利管理
 

@@ -5,7 +5,8 @@ namespace CodexTracker.Tray;
 
 // The interval stays in memory for a final local check. It is never included in the wire payload.
 internal sealed record CalibrationSample(string Model,string Effort,string Speed,long Input,long Output,
-    long CacheRead,long CacheWrite,long Reasoning,long? SnapshotTokens,WeeklyCalibration.Interval Window)
+    long CacheRead,long CacheWrite,long Reasoning,long? SnapshotTokens,int ActiveSessions,bool TaskOverlap,
+    bool UnattributedUsage,WeeklyCalibration.Interval Window)
 {
     internal const int PerSize=2, MaxPoints=3;
     internal static List<CalibrationSample> Read(string path,string root,long consent,long cursor,int[] slots,
@@ -106,15 +107,19 @@ internal sealed record CalibrationSample(string Model,string Effort,string Speed
             WITH interval_events AS (
                 SELECT id,thread_id,turn_id,kind,time_ms FROM Event WHERE device_id=(SELECT id FROM Device WHERE root=$root)
                     AND time_ms>$from AND time_ms<=$to AND kind IN ('response','snapshot','start','work','finish','resume','pause','interrupt')
+            ), activity AS (
+                -- A repeated meter reading alone does not show that an idle chat ran a task.
+                SELECT x.* FROM interval_events x WHERE x.kind<>'snapshot' OR EXISTS (
+                    SELECT 1 FROM Reconciliation r WHERE r.event_id=x.id AND r.status IN ('MATCHED','VERIFIED_DELTA'))
             ), active_threads AS (
-                SELECT thread_id FROM interval_events
+                SELECT thread_id FROM activity
                 UNION SELECT thread_id FROM TimingInterval WHERE device_id=(SELECT id FROM Device WHERE root=$root)
                     AND kind='ACTIVE' AND start_ms<$to AND end_ms>$from
             ), turns AS (
                 SELECT turn_id,min(time_ms) AS first_seen,max(time_ms) AS last_seen,
                     min(CASE WHEN kind='start' THEN time_ms END) AS started,
                     max(CASE WHEN kind='finish' THEN time_ms END) AS finished
-                FROM interval_events WHERE turn_id IS NOT NULL GROUP BY turn_id
+                FROM activity WHERE turn_id IS NOT NULL GROUP BY thread_id,turn_id
             ), ordered_turns AS (
                 SELECT *,lag(last_seen) OVER w AS prior_seen,lag(finished) OVER w AS prior_finish
                 FROM turns WINDOW w AS (ORDER BY first_seen,turn_id)
@@ -128,25 +133,30 @@ internal sealed record CalibrationSample(string Model,string Effort,string Speed
                     l.cache_read,l.cache_write,l.reasoning FROM (SELECT DISTINCT thread_id FROM interval_events) t
                 CROSS JOIN TokenLedger l ON l.device_id=(SELECT id FROM Device WHERE root=$root) AND l.thread_id=t.thread_id
                 CROSS JOIN Event e ON e.id=l.event_id WHERE e.time_ms>$from AND e.time_ms<=$to
+            ), evidence AS (
+                SELECT (SELECT count(*) FROM active_threads) AS active_sessions,
+                    EXISTS (SELECT 1 FROM ordered_turns WHERE started<prior_finish OR first_seen<prior_seen) AS task_overlap,
+                    (EXISTS (SELECT 1 FROM ledger WHERE confidence NOT IN ('OBSERVED','DERIVED') OR turn_id IS NULL)
+                    OR EXISTS (SELECT 1 FROM activity WHERE turn_id IS NULL)
+                    OR EXISTS (SELECT 1 FROM interval_events x WHERE x.kind='response' AND NOT EXISTS (
+                        SELECT 1 FROM ledger t WHERE t.event_id=x.id))
+                    OR EXISTS (SELECT 1 FROM interval_events x WHERE x.kind='snapshot' AND NOT EXISTS (
+                        SELECT 1 FROM Reconciliation r WHERE r.event_id=x.id AND r.status IN ('MATCHED','VERIFIED_DELTA','REPEATED')))
+                    OR EXISTS (SELECT 1 FROM active_threads a WHERE NOT EXISTS (
+                        SELECT 1 FROM Session s WHERE s.device_id=(SELECT id FROM Device WHERE root=$root)
+                        AND s.thread_id=a.thread_id AND s.session_id IS NOT NULL))) AS unattributed_usage
             )
             SELECT l.model,l.effort,sample_speed(l.thread_id,l.turn_id,l.model,l.speed) AS tier,
                 sum(l.input),sum(l.output),sum(l.cache_read),sum(l.cache_write),sum(l.reasoning),
                 (SELECT CASE WHEN count(*)=2 AND count(total)=2 AND count(DISTINCT time_ms)=2 THEN
                     max(CASE WHEN time_ms=$to THEN total END)-max(CASE WHEN time_ms=$from THEN total END) END
-                    FROM boundaries)
-            FROM ledger l
-            WHERE (SELECT count(*) FROM active_threads)=1
-                AND EXISTS (SELECT 1 FROM active_threads a JOIN Session s ON s.thread_id=a.thread_id
-                    WHERE s.device_id=(SELECT id FROM Device WHERE root=$root)
-                    AND s.session_id IS NOT NULL AND s.is_subagent=0)
+                    FROM boundaries),a.active_sessions,a.task_overlap,a.unattributed_usage
+            FROM ledger l CROSS JOIN evidence a
+            WHERE NOT EXISTS (SELECT 1 FROM active_threads t JOIN Session s ON s.thread_id=t.thread_id
+                    WHERE s.device_id=(SELECT id FROM Device WHERE root=$root) AND s.is_subagent=1)
                 AND NOT EXISTS (SELECT 1 FROM ordered_turns WHERE prior_seen IS NOT NULL
-                    AND (started IS NULL OR prior_finish IS NULL OR prior_seen>=first_seen OR prior_finish>started))
-                AND NOT EXISTS (SELECT 1 FROM ledger WHERE confidence NOT IN ('OBSERVED','DERIVED')
-                    OR turn_id IS NULL OR cache_read IS NULL OR cache_write IS NULL OR reasoning IS NULL)
-                AND NOT EXISTS (SELECT 1 FROM interval_events x WHERE x.kind='response' AND NOT EXISTS (
-                    SELECT 1 FROM ledger t WHERE t.event_id=x.id))
-                AND NOT EXISTS (SELECT 1 FROM interval_events x JOIN Reconciliation r ON r.event_id=x.id
-                    WHERE r.status NOT IN ('MATCHED','VERIFIED_DELTA','REPEATED'))
+                    AND (started IS NULL OR prior_finish IS NULL OR prior_seen=first_seen))
+                AND NOT EXISTS (SELECT 1 FROM ledger WHERE cache_read IS NULL OR cache_write IS NULL OR reasoning IS NULL)
             GROUP BY l.model,l.effort,tier
             """;
     }
@@ -156,12 +166,16 @@ internal sealed record CalibrationSample(string Model,string Effort,string Speed
         q.Parameters["$from"].Value=span.Start;q.Parameters["$to"].Value=span.End;
         using var r=q.ExecuteReader();
         if(!r.Read())return null;
+        int activeSessions=r.GetInt32(9);
+        bool taskOverlap=r.GetBoolean(10),unattributedUsage=r.GetBoolean(11);
+        if(activeSessions!=1 || taskOverlap || unattributedUsage)return null;
         string model=r.GetString(0),effort=r.IsDBNull(1)?"unknown":r.GetString(1),speed=r.IsDBNull(2)?"unknown":r.GetString(2);
         if(!CodexCreditRates.Rates.ContainsKey(model) ||
             effort is not ("none" or "minimal" or "low" or "medium" or "high" or "xhigh" or "max" or "ultra" or "unknown") ||
             speed is not ("standard" or "fast" or "ultrafast" or "unknown"))return null;
         var sample=new CalibrationSample(model.ToLowerInvariant(),effort,speed,r.GetInt64(3),r.GetInt64(4),
-            r.GetInt64(5),r.GetInt64(6),r.GetInt64(7),r.IsDBNull(8)?null:r.GetInt64(8),span);
+            r.GetInt64(5),r.GetInt64(6),r.GetInt64(7),r.IsDBNull(8)?null:r.GetInt64(8),
+            activeSessions,taskOverlap,unattributedUsage,span);
         return !r.Read() && sample.Input+sample.Output>0?sample:null;
     }
 }

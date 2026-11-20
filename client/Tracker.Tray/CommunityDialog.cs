@@ -77,6 +77,8 @@ internal sealed class CommunityDialog:Form
                 "After you agree, qualifying rises of 1, 2 or 3 weekly quota points are sent automatically to {0}. Up to two samples per size, six in total, from separate intervals.",SampleSubmission.Host));
             Line(T("发送额度增量、模型、推理强度、速度、Token 计数（含同期累计计数的增量）及随机回执号。Cloudflare 处理连接时可见 IP，样本库不保存 IP。",
                 "Uploads contain the quota change, model, effort, speed, token counts including the counter change, and a random receipt. Cloudflare sees the connection IP. The sample database does not store it."));
+            Line(T("还会发送本机运行任务的会话数、是否发现任务重叠，以及是否有用量无法归属。原始日志、聊天内容和会话 ID 都留在本机。",
+                "We also send the local active chat count, whether tasks overlapped, and whether any usage could not be attributed. Logs, chat content and chat IDs stay on this device."));
             Line(T("取消勾选、暂停监控、锁屏或退出即停止上传并清空本机样本。下次登录需重新同意。",
                 "Unchecking, pausing, locking or quitting stops uploads and clears local samples. Opt in again after sign-in."));
         }
@@ -145,7 +147,7 @@ internal sealed class CommunityDialog:Form
         receipt.Text=submission.Receipt.ToString("D");
         uploadStatus.Text=submission.State switch{
             UploadState.Stored=>display.T("已上传 · 云端核对通过","Uploaded · Passed server checks"),
-            UploadState.Excluded when submission.Review=="excluded_uncertain"=>display.T("已上传 · 计数未能核实或模型档位不完整，已排除","Uploaded · Excluded for unverified counts or incomplete model settings"),
+            UploadState.Excluded when submission.Review=="excluded_uncertain"=>display.T("已上传 · 用量、任务归属或模型档位未能核实，已排除","Uploaded · Excluded because usage, attribution or model settings could not be verified"),
             UploadState.Excluded=>display.T("已排除 · 不纳入校准","Excluded from calibration"),
             UploadState.Unconfirmed or UploadState.CheckUnavailable or UploadState.ReportUnconfirmed=>
                 display.T("等待自动重试","Waiting for automatic retry"),
@@ -155,7 +157,11 @@ internal sealed class CommunityDialog:Form
         };
         var sample=submission.Sample;
         string Unknown(string value)=>value=="unknown"?display.T("未记录","Not recorded"):value;
+        string Detected(bool value)=>value?display.T("已发现","Detected"):display.T("未发现","Not detected");
         preview.Text=string.Join(Environment.NewLine,
+            display.Format("本机运行任务的会话数：{0}","Active chats on this device: {0}",sample.ActiveSessions),
+            display.Format("任务重叠：{0}　·　无法归属的用量：{1}","Task overlap: {0} · Unattributed usage: {1}",
+                Detected(sample.TaskOverlap),Detected(sample.UnattributedUsage)),
             display.Format("模型 {0}　·　推理强度 {1}　·　速度 {2}","Model {0} · Effort {1} · Speed {2}",sample.Model,Unknown(sample.Effort),Unknown(sample.Speed)),
             display.Format("输入 {0:N0}　·　输出 {1:N0}","Input {0:N0} · Output {1:N0}",sample.Input,sample.Output),
             display.Format("缓存读取 {0:N0}　·　缓存写入 {1:N0}","Cache read {0:N0} · Cache write {1:N0}",sample.CacheRead,sample.CacheWrite),
