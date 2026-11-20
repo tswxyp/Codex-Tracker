@@ -8,7 +8,7 @@
 
 [简体中文](README.md) · **English** · [日本語](README.ja.md) · [한국어](README.ko.md)
 
-**What did you earn on that client project after paying for Codex?** Codex Tracker is a Windows tray app for people who do client work in Codex. Hover over a chat in the Codex sidebar to see its token usage and its estimated share of your subscription fee. Enter income for a chat or a project to see its profit or loss. I believe most of you come out ahead on most jobs. Click **Recent profit and loss** on the card to see how that chat did over the period you choose.
+**What did you earn on that client project after paying for Codex?** Codex Tracker is a Windows tray app for OpenAI Codex Desktop that tracks token usage per chat, estimates subscription costs, and helps you work out profit or loss on client projects. Hover over a chat in the Codex sidebar to see its usage and cost. Enter income for a chat or a project to see its profit or loss. I believe most of you come out ahead on most jobs. Click **Recent profit and loss** on the card to see how that chat did over the period you choose.
 
 **[Download for Windows x64](https://github.com/tswxyp/Codex-Tracker/releases/latest/download/CodexTracker-Setup-x64.exe)** · [Get started](#quick-start) · [How costs are estimated](#cost) · [Self-hosting](#self-hosting)
 

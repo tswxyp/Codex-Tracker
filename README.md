@@ -8,7 +8,7 @@
 
 **简体中文** · [English](README.en.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
-**用 Codex 帮客户做项目，这一单赚了多少？** Codex Tracker 是一个 Windows 托盘工具。把鼠标移到 Codex 左侧的一条会话上，就能看到这项工作用了多少 Token、大约花掉多少订阅费。填写会话收入或项目收入后，就可以看到对应会话或项目的盈亏情况。但我相信，大部分情况下，大家都是盈利的。点击卡片上的**近期盈亏**，可以查看这条会话在所选时段的盈亏。
+**用 Codex 帮客户做项目，这一单赚了多少？** Codex Tracker 是一款用于 OpenAI Codex 桌面端的 Windows 工具，可以按会话统计 Token 用量、估算订阅成本，并核算客户项目盈亏。把鼠标移到 Codex 左侧的会话标题上，就能看到这条会话的用量和成本。填写会话收入或项目收入后，就可以看到对应会话或项目的盈亏情况。但我相信，大部分情况下，大家都是盈利的。点击卡片上的**近期盈亏**，可以查看这条会话在所选时段的盈亏。
 
 **[下载 Windows x64 安装包](https://github.com/tswxyp/Codex-Tracker/releases/latest/download/CodexTracker-Setup-x64.exe)** · [开始使用](#quick-start) · [成本怎么算](#cost) · [自托管与多设备](#self-hosting)
 
