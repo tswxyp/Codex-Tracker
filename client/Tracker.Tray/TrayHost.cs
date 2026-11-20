@@ -139,7 +139,7 @@ internal sealed class TrayHost:ApplicationContext
             if(page!=CommunityPage.About)sampleDialog=dialog;
             if(page==CommunityPage.Preview){
                 dialog.UpdatePreview(sample,sampleUnavailable,submission);
-                dialog.UploadRequested+=()=>_=UploadSample();
+                dialog.SubmissionRequested+=reportMultitasking=>_=SubmitSample(reportMultitasking);
             }
             return dialog.ShowDialog();
         }finally{sampleDialog=null;editingIncome=false;}
@@ -168,11 +168,12 @@ internal sealed class TrayHost:ApplicationContext
             SessionSwitchReason.ConsoleDisconnect or SessionSwitchReason.RemoteDisconnect or SessionSwitchReason.SessionLogon)EndConsent();
     }
     void OnSessionEnding(object? sender,SessionEndingEventArgs e)=>EndConsent();
-    async Task UploadSample()
+    async Task SubmitSample(bool reportMultitasking)
     {
         if(sampleConsent is not {} consent || submission is not {} current ||
             consentGeneration!=Interlocked.Read(ref sessionGeneration))return;
-        var send=current.SendAsync(consent.Token);
+        var send=reportMultitasking?current.ReportMultitaskingAsync(consent.Token):
+            current.SendAsync(database,root,settingsStore.Speeds.Current,consent.Token);
         sampleDialog?.UpdatePreview(sample,sampleUnavailable,current);
         await send;
         if(sampleConsent==consent)sampleDialog?.UpdatePreview(sample,sampleUnavailable,current);

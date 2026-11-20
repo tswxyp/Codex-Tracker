@@ -24,7 +24,7 @@ function reply(body, status) {
   return Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
 }
 
-async function receive(request, db) {
+async function receive(request, db, reportMultitasking) {
   if (request.headers.get("Content-Type")?.split(";")[0].trim().toLowerCase() !== "application/json")
     return reply({ error: "expected_json" }, 415);
   if (Number(request.headers.get("Content-Length")) > maxBytes)
@@ -56,16 +56,24 @@ async function receive(request, db) {
 
   const values = fields.map(key => sample[key]);
   try {
+    const matchFields = `receipt=? AND model=? AND effort=? AND speed=? AND input=? AND output=?
+      AND cache_read=? AND cache_write=? AND reasoning=?`;
+    if (reportMultitasking) {
+      // Match the original sample as well as its random receipt. A report can only exclude.
+      const row = await db.prepare(`UPDATE calibration_samples_v1 SET review_status='excluded_multitask'
+        WHERE ${matchFields} RETURNING receipt, review_status`).bind(...values).first();
+      return row ? reply({ status: "stored", receipt: row.receipt, review: row.review_status }, 200)
+        : reply({ error: "sample_not_found" }, 404);
+    }
     const insert = db.prepare(`INSERT INTO calibration_samples_v1
       (receipt,model,effort,speed,input,output,cache_read,cache_write,reasoning)
       VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(receipt) DO NOTHING`).bind(...values);
-    const match = db.prepare(`SELECT receipt FROM calibration_samples_v1
-      WHERE receipt=? AND model=? AND effort=? AND speed=? AND input=? AND output=?
-      AND cache_read=? AND cache_write=? AND reasoning=?`).bind(...values);
+    const match = db.prepare(`SELECT receipt, review_status FROM calibration_samples_v1 WHERE ${matchFields}`).bind(...values);
     const [write, read] = await db.batch([insert, match]);
     if (!write.success || !read.success) return reply({ error: "storage_unavailable" }, 503);
     if (read.results.length !== 1) return reply({ error: "receipt_conflict" }, 409);
-    return reply({ status: "stored", receipt: read.results[0].receipt }, write.meta.changes ? 201 : 200);
+    const row = read.results[0];
+    return reply({ status: "stored", receipt: row.receipt, review: row.review_status }, write.meta.changes ? 201 : 200);
   } catch {
     return reply({ error: "storage_unavailable" }, 503);
   }
@@ -74,8 +82,9 @@ async function receive(request, db) {
 export default {
   async fetch(request, env) {
     const path = new URL(request.url).pathname;
-    if (path === samplePath) {
-      if (request.method === "POST") return receive(request, env.DB);
+    const reportMultitasking = path === samplePath + "/exclude-multitask";
+    if (path === samplePath || reportMultitasking) {
+      if (request.method === "POST") return receive(request, env.DB, reportMultitasking);
       return new Response(null, { status: 405, headers: { Allow: "POST" } });
     }
     if (path !== "/" && path !== "/health") return new Response(null, { status: 404 });

@@ -13,7 +13,8 @@ internal sealed class CommunityDialog:Form
     readonly TextBox? receipt;
     readonly Button? upload;
     readonly DisplayOptions display;
-    internal event Action? UploadRequested;
+    bool reportMultitasking;
+    internal event Action<bool>? SubmissionRequested;
     internal CommunityDialog(DisplayOptions options,CommunityPage page)
     {
         display=options;
@@ -52,7 +53,8 @@ internal sealed class CommunityDialog:Form
         }else if(consent){
             Line(T("感谢您帮助采集并上传您用量和token情况，这有助于更精确地核算每个任务所消耗的真实货币成本。",
                 "Thank you for contributing usage and token samples. They help estimate the subscription cost of individual tasks."));
-            Line(T("请确保您是单设备任务进行的时候再勾选。","Only opt in while using this account on a single device."));
+            Line(T("采样期间，请只用一台设备，并且只在一个 Codex 会话里运行任务。其他会话可以开着，请等采样结束后再运行其他任务或子代理。",
+                "While sampling, use one device and run tasks in only one Codex chat. Other chats can stay open. Wait until sampling finishes before running another task or subagent."));
             Line(T("注：本工具不会收集用户的任何信息、会话内容和隐私内容。","This sampling feature collects no personal information, conversation content or private materials."));
             Line(T("您可以随时使用Codex扫描本项目的代码以确认这一点。","You can ask Codex to inspect the project's source code at any time."));
         }else{
@@ -82,7 +84,12 @@ internal sealed class CommunityDialog:Form
             AcceptButton=CancelButton=Button(T("关闭","Close"),DialogResult.OK);
             if(page==CommunityPage.Preview){
                 upload=Button(T("上传这份样本","Upload this sample"),DialogResult.None);
-                upload.Click+=(_,_)=>UploadRequested?.Invoke();
+                upload.Click+=(_,_)=>{
+                    if(reportMultitasking && MessageBox.Show(this,T("将这份样本标记为多任务，并从校准中排除？",
+                        "Mark this sample as multitasking and exclude it from calibration?"),Text,
+                        MessageBoxButtons.YesNo,MessageBoxIcon.Question,MessageBoxDefaultButton.Button2)!=DialogResult.Yes)return;
+                    SubmissionRequested?.Invoke(reportMultitasking);
+                };
             }
         }
         Add(actions);
@@ -92,21 +99,31 @@ internal sealed class CommunityDialog:Form
     internal void UpdatePreview(CalibrationSample? sample,bool unavailable,SampleSubmission? submission)
     {
         if(preview==null || uploadStatus==null || receipt==null || upload==null)return;
-        upload.Enabled=submission?.State is UploadState.Ready or UploadState.Unconfirmed;
-        upload.Text=submission?.State==UploadState.Unconfirmed?display.T("重试上传","Retry upload"):display.T("上传这份样本","Upload this sample");
+        reportMultitasking=submission?.State is UploadState.Stored or UploadState.Reporting or UploadState.ReportUnconfirmed;
+        upload.Enabled=submission?.State is UploadState.Ready or UploadState.Unconfirmed or UploadState.CheckUnavailable or UploadState.Stored or UploadState.ReportUnconfirmed;
+        upload.Text=reportMultitasking?display.T("标记为多任务并排除","Report multitasking and exclude"):
+            submission?.State is UploadState.Unconfirmed or UploadState.CheckUnavailable?display.T("重试上传","Retry upload"):display.T("上传这份样本","Upload this sample");
         uploadStatus.Visible=receipt.Visible=submission!=null;
         receipt.Text=submission?.Receipt.ToString("D")??"";
         uploadStatus.Text=submission?.State switch{
             UploadState.Ready=>display.T("本次样本编号","Sample receipt number"),
+            UploadState.Checking=>display.T("正在复核本次用量并提交…","Checking and submitting this sample…"),
+            UploadState.CheckUnavailable=>display.T("暂时无法复核本机用量，可稍后重试。","Local usage could not be checked. Try again later."),
+            UploadState.Ineligible=>display.T("本机任务或用量记录已变化，这份样本已停止提交。重新勾选可再采一份。","Local activity or usage changed. Submission stopped. Opt in again to collect a new sample."),
             UploadState.Sending=>display.T("正在等待服务器回执…","Waiting for the server receipt…"),
+            UploadState.Stored when submission.Review=="pending"=>display.T("已上传 · 待审核，尚未纳入校准","Uploaded · Awaiting review, excluded from calibration for now"),
+            UploadState.Stored when submission.Review=="approved"=>display.T("已上传 · 已通过校准样本审核","Uploaded · Approved for calibration"),
             UploadState.Stored=>display.T("已上传 · 服务器回执号","Uploaded · Server receipt"),
+            UploadState.Reporting=>display.T("正在标记多任务样本…","Reporting multitasking…"),
+            UploadState.ReportUnconfirmed=>display.T("样本已上传，尚未确认排除。可重试标记。","Sample uploaded. Exclusion is unconfirmed. Retry reporting."),
+            UploadState.Excluded=>display.T("已排除 · 不纳入校准","Excluded from calibration"),
             UploadState.Unconfirmed=>display.T("尚未确认收到。可用同一编号重试。","Delivery unconfirmed. Retry with the same receipt number."),
             UploadState.Rejected=>display.T("服务器拒收了这份样本。","The server rejected this sample."),
             _=>""
         };
         if(sample==null){
             preview.Text=unavailable?display.T("暂时无法读取用量，将自动重试。","Usage is temporarily unavailable. Sampling will retry."):
-                display.T("等待单个任务跨过两个相邻的周额度百分点。","Waiting for one task to cross two consecutive percentage marks on the weekly meter.");
+                display.T("等待一个会话跨过两个相邻的周额度百分点。期间检测到其他任务，会跳过这段用量。","Waiting for one chat to cross two consecutive weekly quota marks. Intervals with other task activity are skipped.");
             return;
         }
         string Unknown(string value)=>value=="unknown"?display.T("未记录","Not recorded"):value;

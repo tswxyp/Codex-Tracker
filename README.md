@@ -15,13 +15,13 @@ Windows 本地 Codex 用量统计工具，采用 MIT 许可。**Phase 1** 包含
 
 ### 自愿贡献校准样本
 
-同一账号只在一台设备上工作时，右键托盘图标，勾选「我愿意帮助采集并上传用量样本」并点「确认采集」。在一个会话里继续工作，可从「查看采样进度」看到等待状态。程序取相邻两次周额度上升之间的完整区间，例如 20%→21%→22% 时取后两个读数之间的用量。区间结束后预留两分钟等待本地账本写齐。取得一份合格样本即停止采样。
+采样期间请只用一台设备，只在一个 Codex 会话里运行任务。其他会话可以开着，其他任务和子代理请等采样结束后再运行。右键托盘图标，勾选「我愿意帮助采集并上传用量样本」并点「确认采集」。程序取相邻两次周额度上升之间的完整区间，例如 20%→21%→22% 时取后两个读数之间的用量。区间结束后预留两分钟等待本地账本写齐。取得一份合格样本即停止采样。
 
 样本对应周额度表连续增加一个百分点期间单个任务的用量。样本包含模型、推理强度、速度档及输入、输出、缓存读写、其中推理的 Token 计数。速度或强度未记录时显示「未记录」。会话标识仅用于本机核对任务归属，账号、设备、会话标识、标题、正文、路径、金额和时间戳都不进入样本。只有用户本人能够确认其他设备是否同时使用该账号。该观测属于估算依据。
 
-点「查看本次样本」可预览所有用量字段和本次随机编号。只有点击「上传这份样本」才发送。显示「已上传 · 服务器回执号」即表示服务器已将该样本存入 D1。网络中断时可点「重试上传」，相同编号和内容始终只入库一份。取消勾选、暂停监控、锁屏、断开 Windows 会话或退出 Tracker 会清空本机的样本、回执和授权。已经提交的记录保留在样本库中。下次登录需重新确认，每次采样只使用确认后发生的用量。[采样源码](client/Tracker.Tray/CalibrationSample.cs) · [客户端上传源码](client/Tracker.Tray/SampleSubmission.cs)
+点「查看本次样本」可预览所有用量字段和本次随机编号。采样和点击上传时都会核对本机记录。采样区间内有多个会话活动、同一会话的多个轮次无法确认按顺序运行、或用量不完整，均跳过。上传前账本变化导致与预览不符时，客户端停止提交。回执表示服务器已将样本存入 D1，审核状态另行显示。网络中断时可点「重试上传」，相同编号和内容始终只入库一份。上传后如果想起同期运行过其他任务，可在本次预览里点「标记为多任务并排除」。取消勾选、暂停监控、锁屏、断开 Windows 会话或退出 Tracker 会清空本机的样本、回执和授权。已保存回执的用户之后也可向维护者提供编号，申请排除。下次登录需重新确认，每次采样只使用确认后发生的用量。[采样源码](client/Tracker.Tray/CalibrationSample.cs) · [客户端上传源码](client/Tracker.Tray/SampleSubmission.cs)
 
-Cloudflare Worker 的 `POST /v1/samples` 仅接收上述固定字段。样本保存在 D1 的 `calibration_samples_v1` 表，每条记录对应约一个周额度百分点。维护者可在 Cloudflare D1 控制台按 `receipt` 核对回执。数据库只保存样本和本次随机编号，Worker 应用日志与跟踪关闭；Cloudflare 处理 HTTPS 连接时可见来源 IP。提交样本不会自动修改个人账本、估价或校准系数。[托管状态](https://codex-tracker-calibration.tswxyp.workers.dev/health) · [Worker 源码](deploy/calibration-host/worker.js)
+Cloudflare Worker 在 D1 按 `receipt` 保存用量、随机编号和审核状态。历史样本和新样本初始状态均为 `pending`。校准分析使用视图 `calibration_eligible_v1`，只读取经维护者复核为 `approved` 的记录。已知多任务的记录标为 `excluded_multitask`，证据不足的可保留待审或标为 `excluded_uncertain`。已有回执重传不会覆盖审核结论。维护者可在私有的 D1 控制台按回执更新状态，例如 `UPDATE calibration_samples_v1 SET review_status='excluded_multitask' WHERE receipt=?`。复核有依据的待审记录时使用 `UPDATE calibration_samples_v1 SET review_status='approved' WHERE receipt=? AND review_status='pending'`，将参数绑定为对应回执。仅凭 Token 总量无法证明是否有其他设备或未记录的任务同时耗用额度。云端样本不会自动修改个人估价。Worker 应用日志与跟踪关闭；Cloudflare 处理 HTTPS 连接时可见来源 IP。[托管状态](https://codex-tracker-calibration.tswxyp.workers.dev/health) · [Worker 源码](deploy/calibration-host/worker.js)
 
 ## 项目盈利管理
 
