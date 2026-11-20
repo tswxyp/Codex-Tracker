@@ -45,8 +45,9 @@ internal sealed class TrayHost:ApplicationContext
     readonly ToolStripMenuItem pause,status,login,costs,subscription,report,language,currency,palette,quit,about,sampling,samplePreview;
     CancellationTokenSource? sampleConsent;
     CalibrationSample? sample;
+    SampleSubmission? submission;
     bool sampleReading;
-    long consentAt,nextSampleRead,sessionGeneration;
+    long consentAt,nextSampleRead,sessionGeneration,consentGeneration;
     bool sampleUnavailable;
     CommunityDialog? sampleDialog;
     readonly System.Windows.Forms.Timer tick=new(){Interval=50};
@@ -134,8 +135,12 @@ internal sealed class TrayHost:ApplicationContext
         if(editingIncome)return DialogResult.Cancel;
         editingIncome=true;HideAll();
         try{
-            using var dialog=new CommunityDialog(options,page,sample,sampleUnavailable);
+            using var dialog=new CommunityDialog(options,page);
             if(page!=CommunityPage.About)sampleDialog=dialog;
+            if(page==CommunityPage.Preview){
+                dialog.UpdatePreview(sample,sampleUnavailable,submission);
+                dialog.UploadRequested+=()=>_=UploadSample();
+            }
             return dialog.ShowDialog();
         }finally{sampleDialog=null;editingIncome=false;}
     }
@@ -145,6 +150,7 @@ internal sealed class TrayHost:ApplicationContext
         long generation=Interlocked.Read(ref sessionGeneration);
         if(paused || ShowCommunity(CommunityPage.Consent)!=DialogResult.OK || generation!=Interlocked.Read(ref sessionGeneration))return;
         consentAt=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        consentGeneration=generation;
         nextSampleRead=Environment.TickCount64+60_000;
         sampleConsent=new();sampling.Checked=true;TranslateMenu();
     }
@@ -152,7 +158,7 @@ internal sealed class TrayHost:ApplicationContext
     {
         var prior=sampleConsent;sampleConsent=null;
         prior?.Cancel();prior?.Dispose();
-        sample=null;sampleReading=false;sampleUnavailable=false;
+        sample=null;submission=null;sampleReading=false;sampleUnavailable=false;
         sampling.Checked=false;samplePreview.Available=false;
         sampleDialog?.Close();
     }
@@ -162,6 +168,15 @@ internal sealed class TrayHost:ApplicationContext
             SessionSwitchReason.ConsoleDisconnect or SessionSwitchReason.RemoteDisconnect or SessionSwitchReason.SessionLogon)EndConsent();
     }
     void OnSessionEnding(object? sender,SessionEndingEventArgs e)=>EndConsent();
+    async Task UploadSample()
+    {
+        if(sampleConsent is not {} consent || submission is not {} current ||
+            consentGeneration!=Interlocked.Read(ref sessionGeneration))return;
+        var send=current.SendAsync(consent.Token);
+        sampleDialog?.UpdatePreview(sample,sampleUnavailable,current);
+        await send;
+        if(sampleConsent==consent)sampleDialog?.UpdatePreview(sample,sampleUnavailable,current);
+    }
     void EndConsent()
     {
         Interlocked.Increment(ref sessionGeneration);
@@ -177,14 +192,14 @@ internal sealed class TrayHost:ApplicationContext
             var result=await Task.Run(()=>CalibrationSample.Read(database,root,since,settingsStore.Speeds.Current,token),token);
             if(sampleConsent!=consent || token.IsCancellationRequested)return;
             sample=result;sampleUnavailable=false;
-            if(result!=null)TranslateMenu();
+            if(result!=null){submission=new(result);TranslateMenu();}
         }catch(OperationCanceledException) when(token.IsCancellationRequested){ }
         catch(Exception e) when(e is SqliteException or IOException or UnauthorizedAccessException or OverflowException or FormatException){
             if(sampleConsent==consent)sampleUnavailable=true;
         }finally{
             if(sampleConsent==consent){
                 sampleReading=false;nextSampleRead=Environment.TickCount64+60_000;
-                sampleDialog?.UpdatePreview(sample,sampleUnavailable);
+                sampleDialog?.UpdatePreview(sample,sampleUnavailable,submission);
             }
         }
     }
@@ -208,7 +223,7 @@ internal sealed class TrayHost:ApplicationContext
         sampling.Text=T("我愿意帮助采集并上传用量样本","Contribute usage samples");
         sampling.Enabled=!paused;
         samplePreview.Available=sampleConsent!=null;
-        samplePreview.Text=sample==null?T("查看采样进度（仅本机）","Sampling progress (local only)"):T("查看本次样本（仅本机）","View sample (local only)");
+        samplePreview.Text=sample==null?T("查看采样进度","Sampling progress"):T("查看本次样本","View this sample");
         pause.Text=paused?T("恢复监控","Resume monitoring"):T("暂停监控","Pause monitoring");
         foreach(ToolStripMenuItem item in language.DropDownItems){
             item.Checked=Equals(item.Tag,options.Language);

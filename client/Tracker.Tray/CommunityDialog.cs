@@ -9,8 +9,12 @@ internal sealed class CommunityDialog:Form
 {
     internal const string Repository="https://github.com/tswxyp/Codex-Tracker";
     readonly Label? preview;
+    readonly Label? uploadStatus;
+    readonly TextBox? receipt;
+    readonly Button? upload;
     readonly DisplayOptions display;
-    internal CommunityDialog(DisplayOptions options,CommunityPage page,CalibrationSample? sample=null,bool unavailable=false)
+    internal event Action? UploadRequested;
+    internal CommunityDialog(DisplayOptions options,CommunityPage page)
     {
         display=options;
         string T(string zh,string en)=>options.T(zh,en);
@@ -53,10 +57,17 @@ internal sealed class CommunityDialog:Form
             Line(T("您可以随时使用Codex扫描本项目的代码以确认这一点。","You can ask Codex to inspect the project's source code at any time."));
         }else{
             preview=new(){AutoSize=true,MaximumSize=new Size(460,0),Margin=new Padding(0,4,0,8),UseMnemonic=false};
-            Add(preview);UpdatePreview(sample,unavailable);
+            Add(preview);
+            uploadStatus=new(){AutoSize=true,MaximumSize=new Size(460,0),Margin=new Padding(0,4,0,2)};
+            receipt=new(){ReadOnly=true,Width=330,Margin=new Padding(0,0,0,8),
+                AccessibleName=T("本次样本编号","Sample receipt number")};
+            Add(uploadStatus);Add(receipt);
         }
-        if(page!=CommunityPage.About)Line(T("本版仅在本机内存中保留一份样本，暂不上传。取消勾选、锁屏或退出后清空。",
-            "This version keeps one sample in memory on this PC. Uploads are off. Unchecking, locking Windows or quitting clears it."));
+        if(page!=CommunityPage.About){
+            Line(options.Format("点「上传这份样本」才会发送到 {0}。","Use Upload this sample to send it to {0}.",SampleSubmission.Host));
+            if(consent)Line(T("仅发送模型、推理强度、速度、Token 计数和本次随机编号。Cloudflare 处理连接时可见 IP，样本库不保存 IP。取消勾选、锁屏或退出会清空本机样本。",
+                "Only the model, effort, speed, token counts and a random receipt are sent. Cloudflare sees the connection IP. The sample database does not store it. Unchecking, locking or quitting clears the local sample."));
+        }
         var actions=new FlowLayoutPanel{AutoSize=true,FlowDirection=FlowDirection.RightToLeft,Dock=DockStyle.Fill,Margin=new Padding(0,8,0,0)};
         Button Button(string title,DialogResult result){
             var button=new Button{AutoSize=true,Text=title,DialogResult=result,Padding=new Padding(8,2,8,2)};
@@ -67,14 +78,32 @@ internal sealed class CommunityDialog:Form
             Button(T("确认采集","Confirm sampling"),DialogResult.OK);
             AcceptButton=CancelButton=decline;
             Shown+=(_,_)=>decline.Focus();
-        }else AcceptButton=CancelButton=Button(T("关闭","Close"),DialogResult.OK);
+        }else{
+            AcceptButton=CancelButton=Button(T("关闭","Close"),DialogResult.OK);
+            if(page==CommunityPage.Preview){
+                upload=Button(T("上传这份样本","Upload this sample"),DialogResult.None);
+                upload.Click+=(_,_)=>UploadRequested?.Invoke();
+            }
+        }
         Add(actions);
         var theme=new FinanceTheme(FinanceTheme.SystemDark(),options.RedGain);theme.Apply(this);
         if(link!=null)link.LinkColor=link.ActiveLinkColor=link.VisitedLinkColor=theme.Accent;
     }
-    internal void UpdatePreview(CalibrationSample? sample,bool unavailable)
+    internal void UpdatePreview(CalibrationSample? sample,bool unavailable,SampleSubmission? submission)
     {
-        if(preview==null)return;
+        if(preview==null || uploadStatus==null || receipt==null || upload==null)return;
+        upload.Enabled=submission?.State is UploadState.Ready or UploadState.Unconfirmed;
+        upload.Text=submission?.State==UploadState.Unconfirmed?display.T("重试上传","Retry upload"):display.T("上传这份样本","Upload this sample");
+        uploadStatus.Visible=receipt.Visible=submission!=null;
+        receipt.Text=submission?.Receipt.ToString("D")??"";
+        uploadStatus.Text=submission?.State switch{
+            UploadState.Ready=>display.T("本次样本编号","Sample receipt number"),
+            UploadState.Sending=>display.T("正在等待服务器回执…","Waiting for the server receipt…"),
+            UploadState.Stored=>display.T("已上传 · 服务器回执号","Uploaded · Server receipt"),
+            UploadState.Unconfirmed=>display.T("尚未确认收到。可用同一编号重试。","Delivery unconfirmed. Retry with the same receipt number."),
+            UploadState.Rejected=>display.T("服务器拒收了这份样本。","The server rejected this sample."),
+            _=>""
+        };
         if(sample==null){
             preview.Text=unavailable?display.T("暂时无法读取用量，将自动重试。","Usage is temporarily unavailable. Sampling will retry."):
                 display.T("等待单个任务跨过两个相邻的周额度百分点。","Waiting for one task to cross two consecutive percentage marks on the weekly meter.");

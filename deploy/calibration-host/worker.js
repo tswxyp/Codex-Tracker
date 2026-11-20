@@ -1,15 +1,86 @@
+const samplePath = "/v1/samples";
+const maxBytes = 1024;
+const models = new Set([
+  "gpt-6.2-astra", "gpt-6.2-sol", "gpt-6-astra", "gpt-6.1-sol", "gpt-6.1-terra",
+  "gpt-6-sol", "gpt-6-luna", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna",
+]);
+const efforts = new Set(["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra", "unknown"]);
+const speeds = new Set(["standard", "fast", "ultrafast", "unknown"]);
+const counts = ["input", "output", "cacheRead", "cacheWrite", "reasoning"];
+const fields = ["receipt", "model", "effort", "speed", ...counts];
+const uuidV4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+function valid(s) {
+  return s !== null && typeof s === "object" && !Array.isArray(s) &&
+    Object.keys(s).length === fields.length && fields.every(key => Object.hasOwn(s, key)) &&
+    typeof s.receipt === "string" && s.receipt.length === 36 && uuidV4.test(s.receipt) &&
+    models.has(s.model) && efforts.has(s.effort) && speeds.has(s.speed) &&
+    counts.every(key => Number.isSafeInteger(s[key]) && s[key] >= 0) &&
+    Number.isSafeInteger(s.input + s.output) && s.input + s.output > 0 &&
+    s.cacheRead <= s.input && s.reasoning <= s.output;
+}
+
+function reply(body, status) {
+  return Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
+}
+
+async function receive(request, db) {
+  if (request.headers.get("Content-Type")?.split(";")[0].trim().toLowerCase() !== "application/json")
+    return reply({ error: "expected_json" }, 415);
+  if (Number(request.headers.get("Content-Length")) > maxBytes)
+    return reply({ error: "too_large" }, 413);
+  if (!request.body) return reply({ error: "invalid_sample" }, 400);
+
+  const reader = request.body.getReader();
+  const buffer = new Uint8Array(maxBytes);
+  let used = 0;
+  let sample;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value.length > maxBytes - used) {
+        await reader.cancel();
+        return reply({ error: "too_large" }, 413);
+      }
+      buffer.set(value, used);
+      used += value.length;
+    }
+    sample = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(buffer.subarray(0, used)));
+  } catch {
+    return reply({ error: "invalid_sample" }, 400);
+  } finally {
+    reader.releaseLock();
+  }
+  if (!valid(sample)) return reply({ error: "invalid_sample" }, 422);
+
+  const values = fields.map(key => sample[key]);
+  try {
+    const insert = db.prepare(`INSERT INTO calibration_samples_v1
+      (receipt,model,effort,speed,input,output,cache_read,cache_write,reasoning)
+      VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(receipt) DO NOTHING`).bind(...values);
+    const match = db.prepare(`SELECT receipt FROM calibration_samples_v1
+      WHERE receipt=? AND model=? AND effort=? AND speed=? AND input=? AND output=?
+      AND cache_read=? AND cache_write=? AND reasoning=?`).bind(...values);
+    const [write, read] = await db.batch([insert, match]);
+    if (!write.success || !read.success) return reply({ error: "storage_unavailable" }, 503);
+    if (read.results.length !== 1) return reply({ error: "receipt_conflict" }, 409);
+    return reply({ status: "stored", receipt: read.results[0].receipt }, write.meta.changes ? 201 : 200);
+  } catch {
+    return reply({ error: "storage_unavailable" }, 503);
+  }
+}
+
 export default {
-  fetch(request) {
-    if (request.method !== "GET" && request.method !== "HEAD") {
-      return new Response(null, { status: 405, headers: { Allow: "GET, HEAD" } });
-    }
+  async fetch(request, env) {
     const path = new URL(request.url).pathname;
-    if (path !== "/" && path !== "/health") {
-      return new Response(null, { status: 404 });
+    if (path === samplePath) {
+      if (request.method === "POST") return receive(request, env.DB);
+      return new Response(null, { status: 405, headers: { Allow: "POST" } });
     }
-    const status = { service: "Codex Tracker", uploadsEnabled: false };
-    return new Response(request.method === "HEAD" ? null : JSON.stringify(status), {
-      headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
-    });
+    if (path !== "/" && path !== "/health") return new Response(null, { status: 404 });
+    if (request.method === "HEAD") return new Response(null);
+    if (request.method !== "GET") return new Response(null, { status: 405, headers: { Allow: "GET, HEAD" } });
+    return reply({ service: "Codex Tracker", uploadsEnabled: true }, 200);
   },
 };

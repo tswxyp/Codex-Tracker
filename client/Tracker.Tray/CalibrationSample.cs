@@ -84,7 +84,7 @@ internal sealed record CalibrationSample(string Model,string Effort,string Speed
             if(!CodexCreditRates.Rates.ContainsKey(model) ||
                 effort is not ("none" or "minimal" or "low" or "medium" or "high" or "xhigh" or "max" or "ultra" or "unknown") ||
                 speed is not ("standard" or "fast" or "ultrafast" or "unknown"))continue;
-            var sample=new CalibrationSample(model,effort,speed,r.GetInt64(3),r.GetInt64(4),r.GetInt64(5),r.GetInt64(6),r.GetInt64(7));
+            var sample=new CalibrationSample(model.ToLowerInvariant(),effort,speed,r.GetInt64(3),r.GetInt64(4),r.GetInt64(5),r.GetInt64(6),r.GetInt64(7));
             if(!r.Read() && sample.Input+sample.Output>0)return sample;
         }
         return null;
