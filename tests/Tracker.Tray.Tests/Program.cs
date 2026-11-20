@@ -22,13 +22,6 @@ internal static class Program
     }
     [STAThread] public static int Main(string[] args)
     {
-        if(args is ["cost-cache",var syncFile,var localFile,var dev]){
-            var cachedStats=new Stats();
-            var cachedRows=new Dictionary<string,Stats>{{"thread-A",cachedStats}};
-            CostDisplay.Attach(cachedRows,localFile,dev,syncFile);
-            Console.WriteLine(cachedStats.Cost?.Api);
-            return 0;
-        }
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);Application.EnableVisualStyles();
         if(args is ["live"]){Live(false);return 0;}
         if(args is ["scroll"])

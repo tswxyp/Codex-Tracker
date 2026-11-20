@@ -65,7 +65,6 @@ internal static class Exporter
             using var db=Open(sc.Path);using var tx=db.BeginTransaction(deferred:true);
             var facts=new Dictionary<string,Fact>();
             var eventIds=new HashSet<string>();
-            var speeds=new Dictionary<string,string>();
             SqliteCommand Query(string sql){
                 var c=db.CreateCommand();c.Transaction=tx;c.CommandText=sql;
                 c.Parameters.AddWithValue("$d",sc.Device);c.Parameters.AddWithValue("$t",sc.Thread);return c;
@@ -83,7 +82,7 @@ internal static class Exporter
                        json_extract(e.data,'$.Cumulative.Input'),json_extract(e.data,'$.Cumulative.Output'),
                        json_extract(e.data,'$.Cumulative.Read'),json_extract(e.data,'$.Cumulative.Write'),
                        json_extract(e.data,'$.Cumulative.Reason'),json_extract(e.data,'$.Cumulative.Total'),
-                       (SELECT min(code) FROM DataQuality WHERE event_id=e.id AND code IN ('RESPONSE_CONFLICT','INVALID_RESPONSE')),l.speed
+                       (SELECT min(code) FROM DataQuality WHERE event_id=e.id AND code IN ('RESPONSE_CONFLICT','INVALID_RESPONSE'))
                 FROM Event e LEFT JOIN TokenLedger l ON l.event_id=e.id AND l.device_id=e.device_id AND l.thread_id=e.thread_id
                 WHERE e.device_id=$d AND e.thread_id=$t
                 """))
@@ -100,9 +99,6 @@ internal static class Exporter
                 var f=new Fact(r.GetString(7)=="response"?"response":"snapshot",sc.Thread,lineage.SessionId,
                     Str(r,3),response,Num(r,2),Wire.Model(Str(r,8)),Str(r,9),usage,cumulative,Num(r,5));
                 facts["ledger/"+r.GetString(6)]=f;
-                var speed=Str(r,23);
-                if(speed is "standard" or "default" or "fast" or "ultrafast" or "priority" or "batch")
-                    speeds["ledger/"+r.GetString(6)]=speed=="default"?"standard":speed;
             }
             using(var q=Query("""
                 SELECT 'BOUNDARY',first_ms,last_ms FROM TaskTiming WHERE device_id=$d AND thread_id=$t
@@ -120,13 +116,6 @@ internal static class Exporter
                 local.Run("INSERT INTO source_identity VALUES($p0,$p1) ON CONFLICT DO NOTHING",sc.Id,fileKey);
                 var prev=local.Rows("SELECT event FROM seen WHERE scope=$p0",r=>r.GetString(0),sc.Id).ToHashSet();
                 if(!prev.IsSubsetOf(eventIds))throw new InvalidDataException("来源历史回退，请核对统计库；已保留待传记录。");
-                var knownModes=local.Rows("SELECT slot,mode FROM cost_speed WHERE scope=$p0",r=>(Slot:r.GetString(0),Mode:Str(r,1)),sc.Id)
-                    .ToDictionary(x=>x.Slot,x=>x.Mode);
-                foreach(var slot in speeds.Keys.Union(knownModes.Keys)){
-                    var speed=speeds.GetValueOrDefault(slot);
-                    if(knownModes.GetValueOrDefault(slot)==speed)continue;
-                    local.Run("INSERT INTO cost_speed VALUES($p0,$p1,$p2,NULL) ON CONFLICT(scope,slot) DO UPDATE SET mode=excluded.mode,ack=NULL",sc.Id,slot,speed);
-                }
                 foreach(var e in eventIds.Except(prev))local.Run("INSERT INTO seen VALUES($p0,$p1)",sc.Id,e);
                 var old=local.Rows("SELECT slot,id,rev,fact FROM manifest WHERE scope=$p0",r=>(Slot:r.GetString(0),Id:Guid.Parse(r.GetString(1)),
                     Rev:r.GetInt64(2),Body:Str(r,3)),sc.Id).ToDictionary(x=>x.Slot);

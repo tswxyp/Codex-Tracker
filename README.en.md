@@ -81,11 +81,7 @@ A background worker reads new entries in active and archived Codex logs. It chec
 
 ## Optional self-hosted services
 
-| If you need to… | What the service adds |
-| --- | --- |
-| Combine usage from a desktop and a laptop | Authorize devices under one Tracker account and choose the chats to sync. Offline events are queued and deduplicated on reconnect. [Setup and device authorization](docs/phase-3-run.md) |
-| Reconcile subscription bills | Use `/costs` for billing periods, resets and subscription allocation. An API-equivalent price is available as a separate comparison. [Billing guide](docs/phase-4-run.md) |
-| Track the finances of a client project | Use `/finance` for contracts, instalments, outstanding balances, labour and other expenses. Export CSV or XLSX. [Project finance guide](docs/phase-5-run.md) |
+To combine usage from a desktop and a laptop, set up the sync service. Authorize both devices under one Tracker account and choose which chats to sync. Each device records usage offline and syncs on reconnect, with duplicate events counted once. [Setup and device authorization](docs/phase-3-run.md)
 
 The optional ASP.NET Core service uses HTTPS and PostgreSQL and is currently a release candidate. The desktop client has been tried on Windows 11 x64. Windows 10 hardware verification, a two-computer sync trial and a live Docker Compose deployment are still pending. The technical guides below are in Chinese.
 

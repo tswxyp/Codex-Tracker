@@ -9,9 +9,6 @@ internal sealed record CardField(string Label,string Value,int ProfitSign=0,bool
 internal sealed class Stats
 {
     internal List<Usage> Usage {get;}=[];
-    internal CostDisplay? Cost;
-    internal BilledShare? Bill;
-    internal PeriodCredits? PeriodUsage;
     internal WeeklyEstimate? Value;
     internal bool HasPlan,HasCalibration;
     internal ProjectFigures Project=new();
@@ -161,7 +158,6 @@ internal static class Data
         // still gets the same eight fields, with missing usage distinct from zero.
         q.CommandText="SELECT thread_id FROM TaskTiming WHERE device_id=$dev AND first_ms IS NOT NULL"+restrict;
         using(var r=q.ExecuteReader())while(r.Read())Row(r.GetString(0));
-        CostDisplay.Attach(rows,path,id);
         tx.Commit();
         return rows;
     }

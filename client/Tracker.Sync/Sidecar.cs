@@ -45,13 +45,6 @@ internal sealed class Sidecar : IDisposable
             CREATE TABLE source_review(scope INTEGER PRIMARY KEY REFERENCES scope,reason TEXT NOT NULL);
             PRAGMA user_version=3;
             """));
-        Run("""
-            CREATE TABLE IF NOT EXISTS cost_speed(scope INTEGER NOT NULL REFERENCES scope,slot TEXT NOT NULL,
-                mode TEXT,ack TEXT,PRIMARY KEY(scope,slot));
-            CREATE TABLE IF NOT EXISTS cost_cache(p TEXT NOT NULL REFERENCES profile,thread TEXT NOT NULL,epoch TEXT NOT NULL,
-                start_ms INTEGER NOT NULL,end_ms INTEGER NOT NULL,through_ms INTEGER NOT NULL,fetched_ms INTEGER NOT NULL,
-                currency TEXT NOT NULL,api_currency TEXT NOT NULL,basis TEXT NOT NULL,line TEXT NOT NULL,PRIMARY KEY(p,thread));
-            """);
     }
     internal object? Scalar(string sql,params object?[] v){using var c=Cmd(sql,v);var x=c.ExecuteScalar();return x is DBNull?null:x;}
     internal void Run(string sql,params object?[] v){using var c=Cmd(sql,v);c.ExecuteNonQuery();}

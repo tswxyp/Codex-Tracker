@@ -83,8 +83,7 @@ using(var con=app.Services.GetRequiredService<NpgsqlDataSource>().OpenConnection
 {
     var sql=new Sql(con);
     if(sql.One<bool>("SELECT rolsuper OR rolbypassrls OR pg_has_role(current_user,(SELECT relowner FROM pg_class WHERE oid='resource'::regclass),'USAGE') FROM pg_roles WHERE rolname=current_user")
-        || sql.One<int>("SELECT max(version) FROM tracker_schema")!=1 || sql.One<int>("SELECT max(version) FROM cost_schema")!=1
-        || sql.One<int>("SELECT max(version) FROM finance_schema")!=1)
+        || sql.One<int>("SELECT max(version) FROM tracker_schema")!=1)
         throw new InvalidOperationException("Configure a restricted runtime role and apply migrations.");
     if(sql.One<Guid>("SELECT epoch FROM tracker_instance WHERE singleton")!=settings.Epoch)
         throw new InvalidOperationException("代际不匹配，请检查恢复流程。");
@@ -111,10 +110,9 @@ app.Use(async (ctx,next)=>{
 app.UseStaticFiles();
 app.UseRouting();app.UseRateLimiter();app.UseAuthentication();app.UseAuthorization();
 app.MapRazorPages();
-app.MapGet("/",()=>Results.Content("""<html lang="zh"><meta charset="utf-8"><title>Codex Tracker</title><h1>Codex Tracker</h1><p><a href="/dashboard">用量统计</a> · <a href="/finance">项目财务</a> · <a href="/Identity/Account/Login">登录</a> · <a href="/Identity/Account/Register">注册</a> · <a href="/Identity/Account/Manage">账号资料</a> · <a href="/devices">管理设备</a></p></html>""","text/html; charset=utf-8"));
-app.MapGet("/api/v1/capabilities",()=>new {protocol=1,cost_protocol=1,cost_ultrafast=true,issuer=issuer.AbsoluteUri,epoch=settings.Epoch,max_operations=200,max_bytes=524288});
+app.MapGet("/",()=>Results.Content("""<html lang="zh"><meta charset="utf-8"><title>Codex Tracker</title><h1>Codex Tracker</h1><p><a href="/dashboard">用量统计</a> · <a href="/Identity/Account/Login">登录</a> · <a href="/Identity/Account/Register">注册</a> · <a href="/Identity/Account/Manage">账号资料</a> · <a href="/devices">管理设备</a></p></html>""","text/html; charset=utf-8"));
+app.MapGet("/api/v1/capabilities",()=>new {protocol=1,issuer=issuer.AbsoluteUri,epoch=settings.Epoch,max_operations=200,max_bytes=524288});
 DeviceAuth.Map(app);
 SyncApi.Map(app);
 Dashboard.Map(app);
-CostFeed.Map(app);
 app.Run();

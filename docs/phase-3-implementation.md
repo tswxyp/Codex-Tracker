@@ -62,4 +62,4 @@ Phase 1 进程级测试通过 20/20，Phase 2 托盘与 Worker 生命周期测�
 
 Compose YAML 的服务依赖、角色继承与文件路径已解析检查。当前 Windows 和 WSL 环境均无 Docker 引擎，完整容器启动留给有引擎的自托管环境。生产域名、邮件送达、两台物理 Windows 和容量目标仍待现场签收。Phase 2 的 125% DPI 已按负责人指示暂缓，其余补验仍按[原登记](phase-2-compatibility.md)跟进。
 
-**2026-11-19 负责人决定**　两台物理 Windows 电脑联测、Docker Compose 实际启动两项现场验收暂缓，状态均为待实测。Phase 3 保留候选版状态及上述自动化结果。Phase 4 成本核算可基于已验证的去重数据开展。[Phase 4 开工计划](phase-4-plan.md)
+**2026-11-19 负责人决定**　两台物理 Windows 电脑联测、Docker Compose 实际启动两项现场验收暂缓，状态均为待实测。Phase 3 保留候选版状态及上述自动化结果。

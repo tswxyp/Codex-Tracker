@@ -1,5 +1,9 @@
 # 变更记录
 
+## 1.4.2 · 移除自托管账单与项目财务页面
+
+- 移除两个网页、专用接口、费用缓存同步及托盘入口。桌面端继续根据本机订阅和用量估算成本，支持填写会话及项目收入、查看近期盈亏。升级保留已有数据。
+
 ## 1.4.1 · 修复「关于」窗口的五角星
 
 - 将中、英、日、韩介绍文字里的星标改为随 DPI 缩放的五角星图形，避免部分 Windows 字体显示方框。GitHub 文字仍可点击。
@@ -115,18 +119,18 @@
 ## 2026-11-19 · Phase 5 项目盈利管理候选版
 
 - 新增项目财务页，支持客户、合同、分次回款、支出、任务组和会话归属。跨设备编辑沿用项目版本，财务流水支持凭据去重、并发校验及作废。
-- 新增项目及账期利润、未归属池、活跃小时收益、任务查询、条件化订阅均价，以及 CSV 和 XLSX 导出。服务端以独立迁移升级，可配合原 Windows 客户端试用。[使用手册](docs/phase-5-run.md) · [验收报告](docs/phase-5-acceptance.md)
+- 新增项目及账期利润、未归属池、活跃小时收益、任务查询、条件化订阅均价，以及 CSV 和 XLSX 导出。服务端以独立迁移升级，可配合原 Windows 客户端试用。[使用手册](https://github.com/tswxyp/Codex-Tracker/blob/v1.4.1/docs/phase-5-run.md) · [验收报告](https://github.com/tswxyp/Codex-Tracker/blob/v1.4.1/docs/phase-5-acceptance.md)
 
 ## 2026-11-19 · Phase 4 成本核算候选版
 
 - 增加账期、价表、官方 Credits 凭据、估算权重及重置记录的录入、并发修订与账号隔离。费用页支持按线程和项目核对结果，以及保存可追溯的历史核算快照。
 - API 等效成本使用事件发生时有效的公开价表。订阅费用按同口径 Credits 和实付金额分摊；设备欠同步、来源时间缺失或价格不完整会保留具体缺项。
-- Windows 同步客户端与托盘对接本账期费用，新增成本核算页入口、当前线程费用标签及悬停明细。[运行手册](docs/phase-4-run.md) · [验收记录](docs/phase-4-acceptance.md)
+- Windows 同步客户端与托盘对接本账期费用，新增成本核算页入口、当前线程费用标签及悬停明细。[运行手册](https://github.com/tswxyp/Codex-Tracker/blob/v1.4.1/docs/phase-4-run.md) · [验收记录](https://github.com/tswxyp/Codex-Tracker/blob/v1.4.1/docs/phase-4-acceptance.md)
 
 ## 2026-11-19 · Phase 3 现场补验暂缓与 Phase 4 开工准备
 
 - 按负责人决定暂缓双物理机联测及 Docker Compose 实际启动，保留候选版的实测范围。[现场验收记录](docs/phase-3-implementation.md)
-- 核对成本核算的输入和证据缺口，记录实施顺序、数据结构草案与首批验收标准。[Phase 4 开工计划](docs/phase-4-plan.md)
+- 核对成本核算的输入和证据缺口，记录实施顺序、数据结构草案与首批验收标准。[Phase 4 开工计划](https://github.com/tswxyp/Codex-Tracker/blob/v1.4.1/docs/phase-4-plan.md)
 
 ## 2026-11-18 · Phase 3 账号与多设备同步候选版
 

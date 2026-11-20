@@ -25,7 +25,6 @@ try{
               allow 统计库 本地设备ID 线程ID            授权一个线程（默认范围为空）
               collect | sync | watch                  离线入队、一次同步或持续同步
               devices | status | show [资源类型]       查看设备、积压和云端统计缓存
-              costs [--no-browser]                   打开本账号的成本核算页，或打印地址
               edit 操作类型 UUID 当前版本 [JSON]       项目、任务组和成员离线编辑
               logout | flush-logout                  退出当前账号、补传离线撤销凭据
             可用 --state 指定独立同步目录。项目操作示例请见 docs/phase-3-run.md。
@@ -65,13 +64,6 @@ try{
             bool complete=Exporter.Collect(l);using(var r=Active(l))complete=await r.Sync(complete);
             if(!complete)return 2;break;
         case ["devices"]:using(var r=Active(l))Console.WriteLine((await r.Devices()).GetRawText());break;
-        case ["costs"]:
-            var costOrigin=new Uri((string)l.Scalar("SELECT issuer FROM profile WHERE id=$p0",l.Active)!);
-            if(costOrigin.Scheme!="https" || costOrigin.UserInfo.Length!=0 || costOrigin.PathAndQuery!="/")throw new InvalidDataException("服务地址无效。");
-            var url=new Uri(costOrigin,"/costs").AbsoluteUri;
-            Console.WriteLine(url);
-            if(!noBrowser)System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url){UseShellExecute=true});
-            break;
         case ["logout"]:using(var r=Active(l))await r.Logout();Console.WriteLine("已退出。");break;
         case ["status"]:
             Console.WriteLine(Wire.Pack(new{pending=l.Scalar("SELECT count(*) FROM outbox WHERE p=$p0",l.Active),

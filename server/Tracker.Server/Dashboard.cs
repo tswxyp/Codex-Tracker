@@ -50,7 +50,7 @@ internal static class Dashboard
                     <title>用量统计 · Codex Tracker</title><style>
                     :root{color-scheme:light dark}body{font:16px/1.55 "Source Sans 3","Segoe UI",sans-serif;max-width:58rem;margin:3rem auto;padding:0 1rem}
                     nav a{margin-right:1rem}table{border-collapse:collapse;width:100%}td,th{text-align:right;border-bottom:1px solid #8887;padding:.65rem}td:first-child,th:first-child{text-align:left}
-                    </style><nav><a href="/dashboard">全部用量</a><a href="/costs">成本核算</a><a href="/finance">项目财务</a><a href="/devices">设备</a><a href="/Identity/Account/Manage">账号</a></nav>
+                    </style><nav><a href="/dashboard">全部用量</a><a href="/devices">设备</a><a href="/Identity/Account/Manage">账号</a></nav>
                     <h1>用量统计</h1><nav>{{string.Join(" ",links)}}</nav><table><thead><tr><th>模型</th><th>可归属 Token</th><th>待核实记录</th></tr></thead><tbody>{{body}}</tbody></table>
                     </html>
                     ""","text/html; charset=utf-8");

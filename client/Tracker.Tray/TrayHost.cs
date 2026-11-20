@@ -1,6 +1,5 @@
 using Microsoft.Win32;
 using Microsoft.Data.Sqlite;
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 namespace CodexTracker.Tray;
@@ -45,7 +44,7 @@ internal sealed class TrayHost:ApplicationContext
     readonly DesktopUpdates updates=new();
     readonly ToolStripMenuItem updateMenu;
     bool updateBalloon;
-    readonly ToolStripMenuItem pause,status,login,costs,subscription,report,language,currency,palette,quit,about,sampling,samplePreview;
+    readonly ToolStripMenuItem pause,status,login,subscription,report,language,currency,palette,quit,about,sampling,samplePreview;
     CancellationTokenSource? sampleConsent;
     readonly List<SampleSubmission> samples=[];
     bool sampleReading,sampleSending;
@@ -92,12 +91,6 @@ internal sealed class TrayHost:ApplicationContext
         about=new("",null,(_,_)=>ShowCommunity(CommunityPage.About));
         updateMenu=new("",null,(_,_)=>UpdateClicked());
         updateMenu.Visible=updates.Installed;
-        costs=new ToolStripMenuItem("",null,(_,_)=>{
-            if(CostDisplay.ManagementUrl() is Uri url){
-                try{Process.Start(new ProcessStartInfo(url.AbsoluteUri){UseShellExecute=true});}
-                catch(System.ComponentModel.Win32Exception){status.Text=T("无法打开系统浏览器","Could not open browser");}
-            }
-        });
         subscription=new("",null,(_,_)=>EditSubscription());
         report=new("",null,(_,_)=>OpenReport());
         language=new();currency=new();palette=new();
@@ -108,7 +101,7 @@ internal sealed class TrayHost:ApplicationContext
         foreach(string key in Money.Codes)
             currency.DropDownItems.Add(new ToolStripMenuItem(key,null,(_,_)=>ChangeOptions(options with {Currency=options.Currency==key?"auto":key})){Tag=key});
         quit=new("",null,(_,_)=>ExitThread());
-        menu.Items.AddRange(new ToolStripItem[]{report,subscription,language,currency,palette,new ToolStripSeparator(),status,pause,login,sampling,samplePreview,costs,new ToolStripSeparator(),updateMenu,about,quit});
+        menu.Items.AddRange(new ToolStripItem[]{report,subscription,language,currency,palette,new ToolStripSeparator(),status,pause,login,sampling,samplePreview,new ToolStripSeparator(),updateMenu,about,quit});
         TranslateMenu();
         using var iconStream=typeof(TrayHost).Assembly.GetManifestResourceStream("CodexTracker.Tray.Tracker.ico")!;
         trayIcon=new Icon(iconStream,SystemInformation.SmallIconSize);
@@ -117,7 +110,6 @@ internal sealed class TrayHost:ApplicationContext
         icon.BalloonTipClicked+=(_,_)=>{if(updateBalloon)UpdateClicked();else EditSubscription();};
         incomeActions.EditRequested+=EditFromCard;
         menu.Opening+=(_,_)=>{
-            costs.Visible=CostDisplay.ManagementUrl()!=null;
             using var key=Registry.CurrentUser.OpenSubKey(DesktopUpdates.LoginKey);
             login.Checked=string.Equals(key?.GetValue(DesktopUpdates.LoginValue) as string,DesktopUpdates.LoginCommand,StringComparison.OrdinalIgnoreCase);
         };
@@ -269,7 +261,7 @@ internal sealed class TrayHost:ApplicationContext
                 _ when options.HasExplicitCurrency=>options.Format("跟随显示货币 · {0}","Use display currency · {0}",options.Currency),
                 _=>T("跟随 Windows 系统语言","Windows display language")};
         }
-        costs.Text=T("自托管账单","Self-hosted billing");quit.Text=T("退出","Exit");
+        quit.Text=T("退出","Exit");
         login.Text=T("登录 Windows 时启动","Start at Windows sign-in");
         about.Text=T("关于","About");
         TranslateUpdate();

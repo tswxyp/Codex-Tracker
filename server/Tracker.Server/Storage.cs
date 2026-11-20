@@ -65,18 +65,6 @@ internal static class Storage
             sql.Run("INSERT INTO tracker_instance VALUES(true,$1,$2)",scope.ServiceProvider.GetRequiredService<Settings>().Epoch,journal);
             sql.Run("INSERT INTO tracker_schema(version) VALUES(1)");
         }
-        if (!sql.One<bool>("SELECT to_regclass('public.cost_schema') IS NOT NULL")){
-            using var costStream=typeof(Storage).Assembly.GetManifestResourceStream("cost-v1.sql")!;
-            using var costReader=new StreamReader(costStream);
-            sql.Run(await costReader.ReadToEndAsync());
-        }
-        if(sql.One<int>("SELECT max(version) FROM cost_schema")!=1)throw new InvalidOperationException("Unsupported cost schema.");
-        if (!sql.One<bool>("SELECT to_regclass('public.finance_schema') IS NOT NULL")){
-            using var financeStream=typeof(Storage).Assembly.GetManifestResourceStream("finance-v1.sql")!;
-            using var financeReader=new StreamReader(financeStream);
-            sql.Run(await financeReader.ReadToEndAsync());
-        }
-        if(sql.One<int>("SELECT max(version) FROM finance_schema")!=1)throw new InvalidOperationException("Unsupported finance schema.");
         var apps=scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>();
         if(await apps.FindByClientIdAsync("tracker-windows")==null)
             await apps.CreateAsync(new OpenIddictApplicationDescriptor {

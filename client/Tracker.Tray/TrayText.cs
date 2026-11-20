@@ -163,7 +163,6 @@ internal static class TrayText
         ["Enter chat income"]=("チャットの収入を入力","대화 수입 입력"),
         ["Enter project income"]=("案件の収入を入力","프로젝트 수입 입력"),
         ["Subscription budget…"]=("サブスクリプション料金…","구독료…"),
-        ["Self-hosted billing"]=("セルフホストの請求管理","자체 호스팅 청구 관리"),
         ["Exit"]=("終了","종료"),
         ["Start at Windows sign-in"]=("Windows サインイン時に起動","Windows 로그인 시 시작"),
         ["Resume monitoring"]=("計測を再開","모니터링 재개"),

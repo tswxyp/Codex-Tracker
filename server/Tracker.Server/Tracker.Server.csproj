@@ -6,7 +6,6 @@
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="../../shared/CodexCreditRates.cs" Link="Billing/CodexCreditRates.cs" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.15" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="10.0.15" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
@@ -16,7 +15,5 @@
     <PackageReference Include="OpenIddict.EntityFrameworkCore" Version="7.9.0" />
     <ProjectReference Include="../../shared/Tracker.Protocol/Tracker.Protocol.csproj" />
     <EmbeddedResource Include="sync-v1.sql" LogicalName="sync-v1.sql" />
-    <EmbeddedResource Include="cost-v1.sql" LogicalName="cost-v1.sql" />
-    <EmbeddedResource Include="finance-v1.sql" LogicalName="finance-v1.sql" />
   </ItemGroup>
 </Project>

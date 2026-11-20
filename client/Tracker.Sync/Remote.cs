@@ -213,49 +213,8 @@ internal sealed class Remote : IDisposable
         }
         complete=complete && Convert.ToInt64(local.Scalar("SELECT count(*) FROM source_review r JOIN scope s ON s.id=r.scope WHERE s.p=$p0",p))==0;
         if(complete)await Read(await http.PostAsync($"/api/v1/sync/complete?epoch={state.Epoch}&cursor={cursor}&until={until}",null));
-        await RefreshCosts(p,state,complete);
         Console.WriteLine(complete?$"同步完成 · 游标 {cursor}":$"可用记录已同步 · 游标 {cursor}，部分来源待处理，上次完整同步时间已保留。");
         return complete;
-    }
-    async Task RefreshCosts(string p,State state,bool complete)
-    {
-        var caps=await Read(await http.GetAsync("/api/v1/capabilities"));
-        if(!caps.TryGetProperty("cost_protocol",out var protocol) || protocol.GetInt32()!=1){
-            local.Run("DELETE FROM cost_cache WHERE p=$p0",p);
-            return;
-        }
-        string prefix=$"{state.Epoch}/{state.Device}/";
-        bool supportsUltrafast=caps.TryGetProperty("cost_ultrafast",out var fastCap) && fastCap.ValueKind==JsonValueKind.True;
-        while(true){
-            var entries=local.Rows("""
-                SELECT c.scope,c.slot,m.id,m.rev,c.mode FROM cost_speed c JOIN scope s ON s.id=c.scope
-                JOIN manifest m ON (m.scope,m.slot)=(c.scope,c.slot)
-                WHERE s.p=$p0 AND c.ack IS NOT ($p1 || m.rev || CASE WHEN c.mode='ultrafast' THEN $p2 ELSE '' END)
-                AND NOT EXISTS(SELECT 1 FROM source_review WHERE scope=c.scope)
-                ORDER BY c.scope,c.slot LIMIT 200
-                """,r=>(Scope:r.GetInt64(0),Slot:r.GetString(1),Id:r.GetString(2),Rev:r.GetInt64(3),Speed:r.IsDBNull(4)?null:r.GetString(4)),p,prefix,supportsUltrafast?"/ultra":"/unknown");
-            if(entries.Count==0)break;
-            var payload=entries.Select(e=>new{e.Id,e.Rev,Speed=e.Speed=="ultrafast" && !supportsUltrafast?null:e.Speed});
-            await Read(await http.PostAsJsonAsync("/api/v1/costs/speeds",payload,Wire.Json));
-            local.Tx(()=>{foreach(var e in entries){
-                string suffix=e.Speed=="ultrafast"?(supportsUltrafast?"/ultra":"/unknown"):"";
-                local.Run("UPDATE cost_speed SET ack=$p0 WHERE scope=$p1 AND slot=$p2",prefix+e.Rev+suffix,e.Scope,e.Slot);
-            }});
-        }
-        var sheet=await Read(await http.PostAsync("/api/v1/costs/current?complete="+(complete?"true":"false"),null));
-        local.Tx(()=>{
-            local.Run("DELETE FROM cost_cache WHERE p=$p0",p);
-            if(sheet.ValueKind!=JsonValueKind.Object)return;
-            if(sheet.GetProperty("account").GetString()!=state.Account || sheet.GetProperty("epoch").GetGuid()!=state.Epoch)
-                throw new InvalidDataException("费用核算账号或代际不匹配。");
-            foreach(var line in sheet.GetProperty("lines").EnumerateArray())
-                local.Run("""
-                    INSERT INTO cost_cache SELECT $p0,$p1,$p2,$p3,$p4,$p5,$p6,$p7,$p8,$p9,$p10
-                    WHERE EXISTS(SELECT 1 FROM scope WHERE p=$p0 AND thread=$p1)
-                    """,p,line.GetProperty("thread").GetString(),state.Epoch.ToString(),sheet.GetProperty("from_ms").GetInt64(),
-                    sheet.GetProperty("until_ms").GetInt64(),sheet.GetProperty("through_ms").GetInt64(),sheet.GetProperty("generated_ms").GetInt64(),
-                    sheet.GetProperty("currency").GetString(),sheet.GetProperty("api_currency").GetString(),sheet.GetProperty("basis").GetString(),line.GetRawText());
-        });
     }
     async Task<long> Snapshot(string p,State state,bool recover,bool repairSources=false)
     {
