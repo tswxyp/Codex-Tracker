@@ -4,7 +4,7 @@
 
 **Codex で受けた仕事は、利用料を差し引くといくら手元に残るのか。** Codex Tracker は、受託案件の収支を確認するための Windows 常駐アプリです。Codex のサイドバーでチャット名にカーソルを合わせると、その仕事で使ったトークン数と、月額料金のうちその仕事にかかった推定額が分かります。カードから入金を記録すると、チャット単位でも案件全体でも損益を確認できます。
 
-[使い始める](#quick-start) · [コストの計算方法](#cost) · [セルフホスト](#self-hosting)
+**[Windows x64 版をダウンロード](https://github.com/tswxyp/Codex-Tracker/releases/latest/download/CodexTracker-Setup-x64.exe)** · [使い始める](#quick-start) · [コストの計算方法](#cost) · [セルフホスト](#self-hosting)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/ja-dark.png">
@@ -19,7 +19,14 @@
 
 ## Windows で使い始める
 
-Codex Desktop が動作する Windows 11 x64 のパソコンに、[.NET 10 SDK の Windows x64 版](https://dotnet.microsoft.com/download/dotnet/10.0)をインストールします。現在の配布形式はソースコードです。PowerShell で以下の4行を実行してください。GitHub の **Code → Download ZIP** から取得した場合は、展開したプロジェクトフォルダーで最後の2行を実行します。
+Codex Desktop を使用している Windows 11 x64 の PC でインストーラーを実行します。.NET デスクトップランタイムが同梱され、インストール後は通知領域から Tracker を使えます。1.3.3 またはソース版を使用中の方は、旧版をトレイから終了してから一度インストールしてください。既存の記録と設定を引き継ぎます。 [Windows x64 版をダウンロード](https://github.com/tswxyp/Codex-Tracker/releases/latest/download/CodexTracker-Setup-x64.exe)
+
+以後は GitHub の正式版を自動でダウンロードします。更新の準備ができたらトレイから Tracker を再起動するか、次回起動時の自動適用をお待ちください。 [リリースと更新の手順（中国語）](docs/desktop-release.md)
+
+<details>
+<summary>ソースからビルドする（開発者向け）</summary>
+
+[Windows x64 用 .NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) をインストールし、PowerShell で次のコマンドを実行してください。
 
 ```powershell
 git clone https://github.com/tswxyp/Codex-Tracker.git
@@ -27,6 +34,8 @@ cd Codex-Tracker
 .\scripts\build-phase2.ps1
 & .\artifacts\phase2\windows-x64\CodexTracker.Tray.exe
 ```
+
+</details>
 
 1. Windows の通知領域で Tracker のアイコンを右クリックします。**サブスクリプション料金を入力** を開き、請求通貨と毎月の実際の支払額を入力します。Windows へのサインイン時に自動起動する設定もあります。
 2. Codex のサイドバーでチャット名にカーソルを合わせます。初回はバックグラウンドで過去の記録を読み込むため、集計できたものから順に表示されます。カードの配色はサイドバーのライト・ダーク設定に連動します。

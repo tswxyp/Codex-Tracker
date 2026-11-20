@@ -42,6 +42,9 @@ internal sealed class TrayHost:ApplicationContext
     long locatorEpoch=-1;
     string[] requestedTitles=[];
     readonly NotifyIcon icon;
+    readonly DesktopUpdates updates=new();
+    readonly ToolStripMenuItem updateMenu;
+    bool updateBalloon;
     readonly ToolStripMenuItem pause,status,login,costs,subscription,report,language,currency,palette,quit,about,sampling,samplePreview;
     CancellationTokenSource? sampleConsent;
     readonly List<SampleSubmission> samples=[];
@@ -87,6 +90,8 @@ internal sealed class TrayHost:ApplicationContext
         sampling=new("",null,(_,_)=>ToggleSampling());
         samplePreview=new("",null,(_,_)=>ShowCommunity(CommunityPage.Preview));
         about=new("",null,(_,_)=>ShowCommunity(CommunityPage.About));
+        updateMenu=new("",null,(_,_)=>UpdateClicked());
+        updateMenu.Visible=updates.Installed;
         costs=new ToolStripMenuItem("",null,(_,_)=>{
             if(CostDisplay.ManagementUrl() is Uri url){
                 try{Process.Start(new ProcessStartInfo(url.AbsoluteUri){UseShellExecute=true});}
@@ -103,18 +108,18 @@ internal sealed class TrayHost:ApplicationContext
         foreach(string key in Money.Codes)
             currency.DropDownItems.Add(new ToolStripMenuItem(key,null,(_,_)=>ChangeOptions(options with {Currency=options.Currency==key?"auto":key})){Tag=key});
         quit=new("",null,(_,_)=>ExitThread());
-        menu.Items.AddRange(new ToolStripItem[]{report,subscription,language,currency,palette,new ToolStripSeparator(),status,pause,login,sampling,samplePreview,costs,new ToolStripSeparator(),about,quit});
+        menu.Items.AddRange(new ToolStripItem[]{report,subscription,language,currency,palette,new ToolStripSeparator(),status,pause,login,sampling,samplePreview,costs,new ToolStripSeparator(),updateMenu,about,quit});
         TranslateMenu();
         using var iconStream=typeof(TrayHost).Assembly.GetManifestResourceStream("CodexTracker.Tray.Tracker.ico")!;
         trayIcon=new Icon(iconStream,SystemInformation.SmallIconSize);
         icon=new(){Icon=trayIcon,Text="Codex Tracker",ContextMenuStrip=menu,Visible=true};
         icon.DoubleClick+=(_,_)=>OpenReport();
-        icon.BalloonTipClicked+=(_,_)=>EditSubscription();
+        icon.BalloonTipClicked+=(_,_)=>{if(updateBalloon)UpdateClicked();else EditSubscription();};
         incomeActions.EditRequested+=EditFromCard;
         menu.Opening+=(_,_)=>{
             costs.Visible=CostDisplay.ManagementUrl()!=null;
-            using var key=Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
-            login.Checked=string.Equals(key?.GetValue("CodexTracker.Tray") as string,LoginCommand,StringComparison.OrdinalIgnoreCase);
+            using var key=Registry.CurrentUser.OpenSubKey(DesktopUpdates.LoginKey);
+            login.Checked=string.Equals(key?.GetValue(DesktopUpdates.LoginValue) as string,DesktopUpdates.LoginCommand,StringComparison.OrdinalIgnoreCase);
         };
         tick.Tick+=(_,_)=>Refresh();tick.Start();
         _=menu.Handle;
@@ -127,6 +132,33 @@ internal sealed class TrayHost:ApplicationContext
                     T("已开始记录本机用量。点此填写月费，以计算对应成本和盈亏。","Enter your monthly fee to calculate cost and profit for recorded usage."),ToolTipIcon.Info);
             }
         }catch(Exception e) when(e is IOException or SqliteException or UnauthorizedAccessException){ }
+        updates.Changed+=UpdateChanged;
+        updates.Start();
+    }
+    void UpdateClicked()
+    {
+        if(updates.State!=UpdateState.Ready){_=updates.Check();return;}
+        if(editingIncome)return;
+        if(updates.ScheduleRestart())ExitThread();
+        else MessageBox.Show(T("请重新打开 Codex Tracker 以完成更新。","Reopen Codex Tracker to finish updating."),"Codex Tracker");
+    }
+    void UpdateChanged()
+    {
+        TranslateUpdate();
+        if(updates.State!=UpdateState.Ready)return;
+        updateBalloon=true;
+        icon.ShowBalloonTip(10000,"Codex Tracker",T("新版已就绪。点此立即更新，或在下次启动时自动更新。","Update ready. Click to update now, or it will apply on the next start."),ToolTipIcon.Info);
+    }
+    void TranslateUpdate()
+    {
+        updateMenu.Enabled=updates.State is not (UpdateState.Checking or UpdateState.Downloading);
+        updateMenu.Text=updates.State switch{
+            UpdateState.Checking=>T("正在检查更新…","Checking for updates…"),
+            UpdateState.Downloading=>T("正在下载新版…","Downloading update…"),
+            UpdateState.Ready=>T("新版已就绪 · 立即更新","Update ready · Restart Tracker"),
+            UpdateState.Current=>T("已是最新版 · 再次检查","Up to date · Check again"),
+            UpdateState.Failed=>T("更新检查失败 · 重试","Update unavailable · Retry"),
+            _=>T("检查更新","Check for updates")};
     }
     string T(string zh,string en)=>options.T(zh,en);
     DialogResult ShowCommunity(CommunityPage page)
@@ -240,6 +272,7 @@ internal sealed class TrayHost:ApplicationContext
         costs.Text=T("自托管账单","Self-hosted billing");quit.Text=T("退出","Exit");
         login.Text=T("登录 Windows 时启动","Start at Windows sign-in");
         about.Text=T("关于","About");
+        TranslateUpdate();
         sampling.Text=T("我愿意帮助采集并上传用量样本","Contribute usage samples");
         sampling.Enabled=!paused;
         samplePreview.Available=sampleConsent!=null;
@@ -334,14 +367,13 @@ internal sealed class TrayHost:ApplicationContext
             MessageBox.Show(T("无法读取或保存订阅费用。","Could not read or save the subscription budget."),"Codex Tracker");
         }finally{editingIncome=false;}
     }
-    static string LoginCommand=>"\""+Environment.ProcessPath+"\"";
     void ToggleLogin()
     {
         try
         {
-            using var key=Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
-            if(login.Checked)key.DeleteValue("CodexTracker.Tray",false);
-            else key.SetValue("CodexTracker.Tray",LoginCommand);
+            using var key=Registry.CurrentUser.CreateSubKey(DesktopUpdates.LoginKey);
+            if(login.Checked)key.DeleteValue(DesktopUpdates.LoginValue,false);
+            else key.SetValue(DesktopUpdates.LoginValue,DesktopUpdates.LoginCommand);
         }
         catch(Exception){status.Text=T("登录设置未保存","Startup preference could not be saved");}
     }
@@ -514,6 +546,7 @@ internal sealed class TrayHost:ApplicationContext
         {
             SystemEvents.SessionSwitch-=OnSessionSwitch;SystemEvents.SessionEnding-=OnSessionEnding;
             StopSampling();
+            updates.Changed-=UpdateChanged;updates.Dispose();
             tick.Stop();tick.Dispose();guard.Dispose();worker.Dispose();icon.Visible=false;icon.Dispose();menu.Dispose();
             trayIcon.Dispose();
             incomeActions.Dispose();detail.Dispose();

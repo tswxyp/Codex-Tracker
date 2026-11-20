@@ -2,13 +2,14 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
     <ApplicationIcon>Tracker.ico</ApplicationIcon>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>CodexTracker.Tray</AssemblyName>
-    <Version>1.3.3</Version>
+    <Version>1.4.0</Version>
     <RepositoryUrl>https://github.com/tswxyp/Codex-Tracker</RepositoryUrl>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
@@ -17,5 +18,6 @@
     <Compile Include="../../shared/CodexCreditRates.cs" Link="Billing/CodexCreditRates.cs" />
     <ProjectReference Include="../Tracker.Worker/Tracker.Worker.csproj" />
     <PackageReference Include="Interop.UIAutomationClient" Version="10.19041.0" />
+    <PackageReference Include="Velopack" Version="1.2.161" />
   </ItemGroup>
 </Project>

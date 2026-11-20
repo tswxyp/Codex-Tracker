@@ -1,0 +1,51 @@
+name: Publish Windows installer
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-stable-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: windows-2025
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build installer and update feed
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_NAME -cnotmatch '^v(\d+\.\d+\.\d+)$') { throw 'Expected a stable version tag' }
+          ./scripts/build-installer.ps1 -Version $Matches[1] -OutputDirectory "$env:RUNNER_TEMP/release"
+      - name: Publish the complete stable release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = $env:GITHUB_REF_NAME
+          $files = @(Get-ChildItem "$env:RUNNER_TEMP/release" -File | ForEach-Object FullName)
+          if ($files.Count -ne 4) { throw 'Incomplete release' }
+          $releases = gh release list --limit 100 --json tagName,isDraft,isLatest | ConvertFrom-Json
+          if ($LASTEXITCODE) { throw 'Cannot read release status' }
+          $existing = $releases | Where-Object tagName -eq $tag
+          if ($existing -and !$existing.isDraft) { throw 'This tag already has a published release' }
+          $latest = $releases | Where-Object isLatest
+          if ($latest -and [version]$tag.Substring(1) -le [version]$latest.tagName.Substring(1)) { throw 'A newer stable release already exists' }
+          if (!$existing) {
+            $notes = "Download **CodexTracker-Setup-x64.exe** for Windows 11 x64. Run it once to install the tray app and receive future stable updates. 中文用户请下载安装包，旧版用户请先从托盘退出 Tracker。"
+            gh release create $tag --verify-tag --draft --title "Codex Tracker $tag" --notes $notes
+            if ($LASTEXITCODE) { throw 'Could not create the release draft' }
+          }
+          gh release upload $tag @files --clobber
+          if ($LASTEXITCODE) { throw 'Could not upload the release files' }
+          gh release edit $tag --draft=false --latest
+          if ($LASTEXITCODE) { throw 'Could not publish the release' }

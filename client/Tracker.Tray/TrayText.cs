@@ -4,6 +4,15 @@ internal static class TrayText
 {
     static readonly Dictionary<string,(string Japanese,string Korean)> Text=new(StringComparer.Ordinal){
         ["About"]=("このアプリについて","정보"),
+        ["Check for updates"]=("更新を確認","업데이트 확인"),
+        ["Checking for updates…"]=("更新を確認中…","업데이트 확인 중…"),
+        ["Downloading update…"]=("更新をダウンロード中…","업데이트 다운로드 중…"),
+        ["Update ready · Restart Tracker"]=("更新の準備完了 · Tracker を再起動","업데이트 준비 완료 · Tracker 다시 시작"),
+        ["Up to date · Check again"]=("最新版です · 再確認","최신 버전 · 다시 확인"),
+        ["Update unavailable · Retry"]=("更新を確認できません · 再試行","업데이트 확인 실패 · 다시 시도"),
+        ["Reopen Codex Tracker to finish updating."]=("更新を完了するには Codex Tracker を開き直してください。","업데이트를 마치려면 Codex Tracker를 다시 여세요."),
+        ["Update ready. Click to update now, or it will apply on the next start."]=("更新の準備ができました。クリックすると今すぐ、または次回起動時に自動で適用します。","업데이트가 준비되었습니다. 지금 클릭하거나 다음 실행 시 자동으로 적용하세요."),
+        ["Exit the previous Codex Tracker from the tray, then open the installed version from Start."]=("トレイから旧版の Codex Tracker を終了し、スタートメニューからインストールした版を開いてください。","트레이에서 기존 Codex Tracker를 종료한 다음 시작 메뉴에서 설치한 버전을 여세요."),
         ["About Codex Tracker"]=("Codex Tracker について","Codex Tracker 정보"),
         ["Thank you for using Codex Tracker!"]=("Codex Tracker をご利用いただきありがとうございます！","Codex Tracker를 사용해 주셔서 감사합니다!"),
         ["Current version: {0}"]=("現在のバージョン：{0}","현재 버전: {0}"),

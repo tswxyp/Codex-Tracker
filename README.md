@@ -4,7 +4,7 @@
 
 **用 Codex 帮客户做项目，这一单赚了多少？** Codex Tracker 是一个 Windows 托盘工具。把鼠标移到 Codex 左侧的一条会话上，就能看到这项工作用了多少 Token、大约花掉多少订阅费。点卡片记下客户的付款，就能看到这条会话和整个项目的盈亏。
 
-[开始使用](#quick-start) · [成本怎么算](#cost) · [自托管与多设备](#self-hosting)
+**[下载 Windows x64 安装包](https://github.com/tswxyp/Codex-Tracker/releases/latest/download/CodexTracker-Setup-x64.exe)** · [开始使用](#quick-start) · [成本怎么算](#cost) · [自托管与多设备](#self-hosting)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/zh-cn-dark.png">
@@ -19,7 +19,14 @@
 
 ## 开始使用
 
-准备一台运行 Codex Desktop 的 Windows 11 x64 电脑，并安装 [.NET 10 SDK（Windows x64）](https://dotnet.microsoft.com/download/dotnet/10.0)。目前提供源码。在 PowerShell 运行以下四行，或在 GitHub 点 **Code → Download ZIP**，解压后在项目根目录执行最后两行。
+在运行 Codex Desktop 的 Windows 11 x64 电脑上双击安装包。安装后可从右下角托盘使用 Tracker，所需的 .NET 运行时已随包提供。已有 1.3.3 或源码版的用户，先从托盘退出旧 Tracker，再安装一次，原有账本和设置会继续使用。 [下载 Windows x64 安装包](https://github.com/tswxyp/Codex-Tracker/releases/latest/download/CodexTracker-Setup-x64.exe)
+
+之后 Tracker 会自动下载 GitHub 正式版更新。托盘提示「新版已就绪」时可点「立即更新」，或等下次启动 Tracker 时自动应用。 [发布与更新说明](docs/desktop-release.md)
+
+<details>
+<summary>从源码构建（开发者）</summary>
+
+安装 [.NET 10 SDK（Windows x64）](https://dotnet.microsoft.com/download/dotnet/10.0)，然后在 PowerShell 运行以下命令。
 
 ```powershell
 git clone https://github.com/tswxyp/Codex-Tracker.git
@@ -27,6 +34,8 @@ cd Codex-Tracker
 .\scripts\build-phase2.ps1
 & .\artifacts\phase2\windows-x64\CodexTracker.Tray.exe
 ```
+
+</details>
 
 1. 在 Windows 右下角右键单击 Tracker 托盘图标，打开 **输入订阅费用**，选择实际扣款的币种，填写每月实付金额。也可以勾选 **登录 Windows 时启动**。
 2. 回到 Codex，把鼠标停在左侧会话标题上。首次使用要等后台读完已有记录，统计会陆续出现。卡片会跟随 Codex 的浅色或深色界面。

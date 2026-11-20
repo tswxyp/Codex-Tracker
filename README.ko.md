@@ -4,7 +4,7 @@
 
 **Codex로 고객 일을 마쳤을 때 구독료를 빼고 얼마나 남았을까요?** Codex Tracker는 외주 프로젝트의 수익을 확인하는 Windows 트레이 앱입니다. Codex 사이드바에서 대화 제목에 마우스를 올리면 사용한 토큰 수와 그 대화에 쓰인 구독료 추정액을 볼 수 있습니다. 카드에서 입금액을 기록하면 대화별 손익과 프로젝트 전체 손익을 함께 확인할 수 있습니다.
 
-[시작하기](#quick-start) · [비용 계산 방식](#cost) · [셀프 호스팅](#self-hosting)
+**[Windows x64 설치 파일 다운로드](https://github.com/tswxyp/Codex-Tracker/releases/latest/download/CodexTracker-Setup-x64.exe)** · [시작하기](#quick-start) · [비용 계산 방식](#cost) · [셀프 호스팅](#self-hosting)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/ko-dark.png">
@@ -19,7 +19,14 @@
 
 ## Windows에서 시작하기
 
-Codex Desktop을 사용하는 Windows 11 x64 PC에 [.NET 10 SDK Windows x64 버전](https://dotnet.microsoft.com/download/dotnet/10.0)을 설치합니다. 현재 데스크톱 앱은 소스 코드로 배포합니다. PowerShell에서 아래 네 줄을 실행하세요. GitHub에서 **Code → Download ZIP**으로 받았다면 압축을 풀고 프로젝트 폴더에서 마지막 두 줄만 실행하면 됩니다.
+Codex Desktop을 사용하는 Windows 11 x64 PC에서 설치 파일을 실행하세요. .NET 데스크톱 런타임이 포함되어 있으며 설치하면 알림 영역에서 Tracker를 사용할 수 있습니다. 1.3.3 또는 소스 빌드 사용자는 기존 Tracker를 트레이에서 종료한 뒤 한 번 설치하면 기존 기록과 설정이 이어집니다. [Windows x64 설치 파일 다운로드](https://github.com/tswxyp/Codex-Tracker/releases/latest/download/CodexTracker-Setup-x64.exe)
+
+이후 Tracker가 GitHub 정식 버전을 자동으로 내려받습니다. 트레이에 업데이트 준비 완료가 표시되면 즉시 Tracker를 다시 시작하거나 다음 실행 시 자동으로 적용할 수 있습니다. [출시 및 업데이트 가이드 (중국어)](docs/desktop-release.md)
+
+<details>
+<summary>소스에서 빌드하기 (개발자용)</summary>
+
+[Windows x64용 .NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)를 설치한 뒤 PowerShell에서 다음 명령을 실행하세요.
 
 ```powershell
 git clone https://github.com/tswxyp/Codex-Tracker.git
@@ -27,6 +34,8 @@ cd Codex-Tracker
 .\scripts\build-phase2.ps1
 & .\artifacts\phase2\windows-x64\CodexTracker.Tray.exe
 ```
+
+</details>
 
 1. Windows 알림 영역에서 Tracker 아이콘을 마우스 오른쪽 버튼으로 클릭하고 **구독료 입력**을 엽니다. 실제 결제 통화와 매월 결제하는 금액을 입력합니다. Windows 로그인 시 자동으로 시작하도록 설정할 수도 있습니다.
 2. Codex 사이드바에서 대화 제목에 마우스를 올립니다. 처음에는 백그라운드에서 기존 기록을 읽으며, 집계가 끝난 항목부터 표시합니다. 카드는 사이드바의 밝은 테마와 어두운 테마를 따릅니다.

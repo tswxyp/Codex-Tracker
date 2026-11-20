@@ -4,7 +4,7 @@
 
 **What did you earn on that client project after paying for Codex?** Codex Tracker is a Windows tray app for people who do client work in Codex. Hover over a chat in the Codex sidebar to see its token usage and its estimated share of your subscription fee. Record a payment on the card to see how much you earned on that chat and on the project as a whole.
 
-[Get started](#quick-start) · [How costs are estimated](#cost) · [Self-hosting](#self-hosting)
+**[Download for Windows x64](https://github.com/tswxyp/Codex-Tracker/releases/latest/download/CodexTracker-Setup-x64.exe)** · [Get started](#quick-start) · [How costs are estimated](#cost) · [Self-hosting](#self-hosting)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/readme/en-dark.png">
@@ -19,7 +19,14 @@ The client paid **CNY 800** in two instalments. The delivery chat used an estima
 
 ## Get started on Windows
 
-You’ll need Codex Desktop and the [Windows x64 .NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) on Windows 11 x64. The desktop client is available as source. Run these four lines in PowerShell, or choose **Code → Download ZIP** on GitHub, extract it and run the last two lines from the project folder.
+Run the installer on a Windows 11 x64 PC with Codex Desktop. It includes the .NET desktop runtime and starts Tracker in the notification area. If you use 1.3.3 or a source build, exit the old tray app before installing once. Your existing ledger and settings carry over. [Download for Windows x64](https://github.com/tswxyp/Codex-Tracker/releases/latest/download/CodexTracker-Setup-x64.exe)
+
+Tracker downloads future stable releases from GitHub. When the tray shows “Update ready”, restart Tracker from the menu or let it apply the update on its next start. [Release and update guide (Chinese)](docs/desktop-release.md)
+
+<details>
+<summary>Build from source (developers)</summary>
+
+Install the [Windows x64 .NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) and run the following in PowerShell.
 
 ```powershell
 git clone https://github.com/tswxyp/Codex-Tracker.git
@@ -27,6 +34,8 @@ cd Codex-Tracker
 .\scripts\build-phase2.ps1
 & .\artifacts\phase2\windows-x64\CodexTracker.Tray.exe
 ```
+
+</details>
 
 1. Right-click the Tracker icon in the Windows notification area. Select **Enter subscription fee**, choose the currency you were billed in and enter what you actually pay each month. You can also enable launch at Windows sign-in.
 2. Hover over a chat title in the Codex sidebar. On the first run, figures appear as Tracker reads your history in the background. The card follows the light or dark appearance of the sidebar.
