@@ -9,7 +9,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>CodexTracker.Tray</AssemblyName>
-    <Version>1.4.0</Version>
+    <Version>1.4.1</Version>
     <RepositoryUrl>https://github.com/tswxyp/Codex-Tracker</RepositoryUrl>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>

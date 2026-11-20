@@ -43,14 +43,32 @@ internal sealed class CommunityDialog:Form
             Line(T("感谢使用 Codex Tracker 工具！","Thank you for using Codex Tracker!"),true);
             string version=typeof(TrayHost).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!.InformationalVersion.Split('+')[0];
             Line(options.Format("当前版本：{0}","Current version: {0}",version));
-            string text=T("如果您认为这个工具还凑合，请在 GitHub 上给我一个⭐️吧！","If this tool works for you, give it a ⭐️ on GitHub!");
-            link=new LinkLabel{Text=text,AutoSize=true,MaximumSize=new Size(460,0),Margin=new Padding(0,4,0,8),UseMnemonic=false};
-            link.Links.Clear();link.Links.Add(text.IndexOf("GitHub",StringComparison.Ordinal),6,Repository);
-            link.LinkClicked+=(_,_)=>{
-                try{Process.Start(new ProcessStartInfo(Repository){UseShellExecute=true});}
-                catch(System.ComponentModel.Win32Exception){MessageBox.Show(this,Repository,T("无法打开系统浏览器","Could not open browser"));}
-            };
-            Add(link);
+            string text=T("如果您认为这个工具还凑合，请在 GitHub 上给我一个{star}吧！","If this tool works for you, give it a {star} on GitHub!");
+            var parts=text.Split("{star}",2,StringSplitOptions.None);
+            var row=new TableLayoutPanel{AutoSize=true,AutoSizeMode=AutoSizeMode.GrowAndShrink,
+                RowCount=1,ColumnCount=3,Margin=new Padding(0,4,0,8)};
+            Label StarText(string part){
+                int github=part.IndexOf("GitHub",StringComparison.Ordinal);
+                Label label;
+                if(github>=0){
+                    link=new LinkLabel{Text=part};
+                    link.Links.Clear();link.Links.Add(github,6,Repository);
+                    link.LinkClicked+=(_,_)=>{
+                        try{Process.Start(new ProcessStartInfo(Repository){UseShellExecute=true});}
+                        catch(System.ComponentModel.Win32Exception){MessageBox.Show(this,Repository,T("无法打开系统浏览器","Could not open browser"));}
+                    };
+                    label=link;
+                }else label=new Label{Text=part};
+                label.AutoSize=true;label.Anchor=AnchorStyles.Left;label.Margin=Padding.Empty;label.UseMnemonic=false;
+                return label;
+            }
+            var star=new PictureBox{Size=new Size(17,17),Anchor=AnchorStyles.None,Margin=new Padding(2,0,2,0),
+                AccessibleRole=AccessibleRole.Graphic,AccessibleName=T("五角星","Star")};
+            star.Paint+=(_,e)=>DrawStar(e.Graphics,star.ClientSize);
+            row.Controls.Add(StarText(parts[0]),0,0);
+            row.Controls.Add(star,1,0);
+            row.Controls.Add(StarText(parts[1]),2,0);
+            Add(row);
         }else if(consent){
             Line(T("感谢您帮助采集并上传您用量和token情况，这有助于更精确地核算每个任务所消耗的真实货币成本。",
                 "Thank you for contributing usage and token samples. They help estimate the subscription cost of individual tasks."));
@@ -107,6 +125,23 @@ internal sealed class CommunityDialog:Form
         Add(actions);
         var theme=new FinanceTheme(FinanceTheme.SystemDark(),options.RedGain);theme.Apply(this);
         if(link!=null)link.LinkColor=link.ActiveLinkColor=link.VisitedLinkColor=theme.Accent;
+    }
+    static void DrawStar(Graphics graphics,Size size)
+    {
+        float side=Math.Min(size.Width,size.Height);
+        if(side<3)return;
+        var points=new PointF[10];
+        for(int i=0;i<points.Length;i++){
+            float angle=(i/5f-.5f)*MathF.PI;
+            float radius=side*(i%2==0?.46f:.21f);
+            points[i]=new(size.Width/2f+radius*MathF.Cos(angle),size.Height/2f+radius*MathF.Sin(angle));
+        }
+        graphics.SmoothingMode=System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        using var fill=new SolidBrush(SystemInformation.HighContrast?SystemColors.WindowText:Color.FromArgb(249,191,62));
+        using var edge=new Pen(SystemInformation.HighContrast?SystemColors.WindowText:Color.FromArgb(145,96,16),side/17f);
+        edge.LineJoin=System.Drawing.Drawing2D.LineJoin.Round;
+        graphics.FillPolygon(fill,points);
+        graphics.DrawPolygon(edge,points);
     }
     internal void UpdatePreview(IReadOnlyList<SampleSubmission> samples,bool unavailable)
     {
